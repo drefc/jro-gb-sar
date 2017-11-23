@@ -1,4 +1,0 @@
-Tue, 07 Nov 2017 17:20:46 INFO App started running at 2017-11-07 12:20:46.157905-05:00
-Tue, 07 Nov 2017 17:20:46 WARNING  * Debugger is active!
-Tue, 07 Nov 2017 17:20:46 INFO  * Debugger PIN: 387-312-419
-Tue, 07 Nov 2017 17:20:51 INFO 25.56.104.172 - - [07/Nov/2017 17:20:51] "GET /instrument/check/vna HTTP/1.1" 200 -

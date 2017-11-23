@@ -1,4 +1,0 @@
-Tue, 14 Nov 2017 18:59:47 INFO App started running at 2017-11-14 13:59:47.536395-05:00
-Tue, 14 Nov 2017 18:59:47 WARNING  * Debugger is active!
-Tue, 14 Nov 2017 18:59:47 INFO  * Debugger PIN: 315-992-875
-Tue, 14 Nov 2017 18:59:57 INFO 25.56.104.172 - - [14/Nov/2017 18:59:57] "GET /instance_test/hola HTTP/1.1" 200 -
