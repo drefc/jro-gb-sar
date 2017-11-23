@@ -1,0 +1,9 @@
+Tue, 07 Nov 2017 17:19:06 INFO App started running at 2017-11-07 12:19:06.097849-05:00
+Tue, 07 Nov 2017 17:19:06 WARNING  * Debugger is active!
+Tue, 07 Nov 2017 17:19:06 INFO  * Debugger PIN: 387-312-419
+Tue, 07 Nov 2017 17:19:10 INFO 25.56.104.172 - - [07/Nov/2017 17:19:10] "GET /instrument/check/rail HTTP/1.1" 500 -
+Tue, 07 Nov 2017 17:19:10 INFO 25.56.104.172 - - [07/Nov/2017 17:19:10] "GET /instrument/check/rail?__debugger__=yes&cmd=resource&f=style.css HTTP/1.1" 200 -
+Tue, 07 Nov 2017 17:19:10 INFO 25.56.104.172 - - [07/Nov/2017 17:19:10] "GET /instrument/check/rail?__debugger__=yes&cmd=resource&f=jquery.js HTTP/1.1" 200 -
+Tue, 07 Nov 2017 17:19:10 INFO 25.56.104.172 - - [07/Nov/2017 17:19:10] "GET /instrument/check/rail?__debugger__=yes&cmd=resource&f=debugger.js HTTP/1.1" 200 -
+Tue, 07 Nov 2017 17:19:10 INFO 25.56.104.172 - - [07/Nov/2017 17:19:10] "GET /instrument/check/rail?__debugger__=yes&cmd=resource&f=console.png HTTP/1.1" 200 -
+Tue, 07 Nov 2017 17:19:10 INFO 25.56.104.172 - - [07/Nov/2017 17:19:10] "GET /instrument/check/rail?__debugger__=yes&cmd=resource&f=console.png HTTP/1.1" 200 -

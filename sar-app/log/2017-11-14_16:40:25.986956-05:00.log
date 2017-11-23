@@ -1,0 +1,11 @@
+Tue, 14 Nov 2017 21:40:25 INFO App started running at 2017-11-14 16:40:25.986956-05:00
+Tue, 14 Nov 2017 21:40:26 WARNING  * Debugger is active!
+Tue, 14 Nov 2017 21:40:26 INFO  * Debugger PIN: 315-992-875
+Tue, 14 Nov 2017 21:40:30 INFO 25.56.104.172 - - [14/Nov/2017 21:40:30] "GET /instance_test/hola HTTP/1.1" 200 -
+Tue, 14 Nov 2017 21:40:41 INFO 25.56.104.172 - - [14/Nov/2017 21:40:41] "GET /instance_test/chau HTTP/1.1" 200 -
+Tue, 14 Nov 2017 21:40:48 INFO 25.56.104.172 - - [14/Nov/2017 21:40:48] "GET /instance_test/chau HTTP/1.1" 200 -
+Tue, 14 Nov 2017 21:40:49 INFO 25.56.104.172 - - [14/Nov/2017 21:40:49] "GET /instance_test/chau HTTP/1.1" 200 -
+Tue, 14 Nov 2017 21:40:50 INFO 25.56.104.172 - - [14/Nov/2017 21:40:50] "GET /instance_test/chau HTTP/1.1" 200 -
+Tue, 14 Nov 2017 21:40:50 INFO 25.56.104.172 - - [14/Nov/2017 21:40:50] "GET /instance_test/chau HTTP/1.1" 200 -
+Tue, 14 Nov 2017 21:40:50 INFO 25.56.104.172 - - [14/Nov/2017 21:40:50] "GET /instance_test/chau HTTP/1.1" 200 -
+Tue, 14 Nov 2017 21:41:12 INFO  * Detected change in '/home/Documents/sar-app/resources/instance_test.py', reloading

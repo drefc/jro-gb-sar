@@ -1,0 +1,6 @@
+Wed, 15 Nov 2017 14:22:18 INFO App started running at 2017-11-15 09:22:18.914576-05:00
+Wed, 15 Nov 2017 14:22:18 WARNING  * Debugger is active!
+Wed, 15 Nov 2017 14:22:18 INFO  * Debugger PIN: 100-878-382
+Wed, 15 Nov 2017 14:22:26 INFO 25.56.104.172 - - [15/Nov/2017 14:22:26] "GET /instance_test/hola HTTP/1.1" 200 -
+Wed, 15 Nov 2017 14:22:26 INFO 25.56.104.172 - - [15/Nov/2017 14:22:26] "GET /favicon.ico HTTP/1.1" 404 -
+Wed, 15 Nov 2017 14:22:36 INFO  * Detected change in '/home/Documents/sar-app/resources/instance_test.py', reloading

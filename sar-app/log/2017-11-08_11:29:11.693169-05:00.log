@@ -1,0 +1,5 @@
+Wed, 08 Nov 2017 16:29:11 INFO App started running at 2017-11-08 11:29:11.693169-05:00
+Wed, 08 Nov 2017 16:29:11 WARNING  * Debugger is active!
+Wed, 08 Nov 2017 16:29:11 INFO  * Debugger PIN: 123-957-116
+Wed, 08 Nov 2017 16:29:16 INFO 25.53.232.238 - - [08/Nov/2017 16:29:16] "GET /configuration/list HTTP/1.1" 200 -
+Wed, 08 Nov 2017 16:39:07 INFO  * Detected change in '/home/Documents/sar-app/static/sar_experiment.py', reloading

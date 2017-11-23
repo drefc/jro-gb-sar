@@ -1,0 +1,7 @@
+Thu, 16 Nov 2017 15:12:01 INFO App started running at 2017-11-16 10:12:01.755890-05:00
+Thu, 16 Nov 2017 15:12:01 WARNING  * Debugger is active!
+Thu, 16 Nov 2017 15:12:01 INFO  * Debugger PIN: 100-878-382
+Thu, 16 Nov 2017 15:12:09 INFO 25.56.104.172 - - [16/Nov/2017 15:12:09] "GET /instance_test/hola HTTP/1.1" 200 -
+Thu, 16 Nov 2017 15:12:09 INFO 25.56.104.172 - - [16/Nov/2017 15:12:09] "GET /favicon.ico HTTP/1.1" 404 -
+Thu, 16 Nov 2017 15:12:12 INFO 25.56.104.172 - - [16/Nov/2017 15:12:12] "GET /instance_test/hola HTTP/1.1" 200 -
+Thu, 16 Nov 2017 15:12:18 INFO 25.56.104.172 - - [16/Nov/2017 15:12:18] "GET /instance_test/hola HTTP/1.1" 200 -

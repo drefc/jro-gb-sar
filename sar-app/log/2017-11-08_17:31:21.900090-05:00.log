@@ -1,0 +1,10 @@
+Wed, 08 Nov 2017 22:31:21 INFO App started running at 2017-11-08 17:31:21.900090-05:00
+Wed, 08 Nov 2017 22:31:21 WARNING  * Debugger is active!
+Wed, 08 Nov 2017 22:31:21 INFO  * Debugger PIN: 191-403-059
+Wed, 08 Nov 2017 22:31:26 INFO 25.56.104.172 - - [08/Nov/2017 22:31:26] "GET /configuration/current_configuration HTTP/1.1" 500 -
+Wed, 08 Nov 2017 22:31:26 INFO 25.56.104.172 - - [08/Nov/2017 22:31:26] "GET /configuration/current_configuration?__debugger__=yes&cmd=resource&f=style.css HTTP/1.1" 200 -
+Wed, 08 Nov 2017 22:31:26 INFO 25.56.104.172 - - [08/Nov/2017 22:31:26] "GET /configuration/current_configuration?__debugger__=yes&cmd=resource&f=jquery.js HTTP/1.1" 200 -
+Wed, 08 Nov 2017 22:31:26 INFO 25.56.104.172 - - [08/Nov/2017 22:31:26] "GET /configuration/current_configuration?__debugger__=yes&cmd=resource&f=debugger.js HTTP/1.1" 200 -
+Wed, 08 Nov 2017 22:31:26 INFO 25.56.104.172 - - [08/Nov/2017 22:31:26] "GET /configuration/current_configuration?__debugger__=yes&cmd=resource&f=console.png HTTP/1.1" 200 -
+Wed, 08 Nov 2017 22:31:26 INFO 25.56.104.172 - - [08/Nov/2017 22:31:26] "GET /configuration/current_configuration?__debugger__=yes&cmd=resource&f=console.png HTTP/1.1" 200 -
+Wed, 08 Nov 2017 22:31:40 INFO  * Detected change in '/home/Documents/sar-app/resources/experiment_configuration.py', reloading
