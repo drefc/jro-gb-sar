@@ -1,15 +1,15 @@
 from flask_restful import Resource
 from flask import jsonify, request
 
-import os, sys
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+sys.path.append('/home/Documents/sar-app')
 
 from MyGlobals import myglobals
 
 class InstanceTest(Resource):
     def get(self, instruction):
-        if instruction=='hola':
+        if instruction=='hola':            
             myglobals.counter=myglobals.counter+1
 
         if instruction=='chau':

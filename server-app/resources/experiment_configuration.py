@@ -3,9 +3,9 @@ from flask import jsonify, request
 from bson import ObjectId
 
 import json, ast
-import os, sys
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+sys.path.append('/home/Documents/sar-app/')
 
 from common.db import *
 from static import sar_experiment

@@ -1,10 +1,9 @@
 import time
 import socket
 import logging
+import sys
 
-import os, sys
-
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+sys.path.append('/home/Documents/sar-app')
 
 from static import constants
 
@@ -30,7 +29,7 @@ class railClient():
         try:
             self.socket.connect((self.host, self.port))
         except socket.error:
-            self.close()
+            self.close()            
 
     def send(self, data):
         try:

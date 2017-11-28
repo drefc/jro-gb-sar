@@ -2,9 +2,9 @@ from flask_restful import Resource
 from flask import jsonify, request
 from datetime import datetime
 
-import os, sys
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+sys.path.append('/home/Documents/sar-app')
 
 from common import db
 from static.sar_experiment import *

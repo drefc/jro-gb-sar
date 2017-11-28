@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
+import paramiko
+import sys
+
 from os import listdir
 from os.path import isfile, join
 
-import paramiko
-import os, sys
-
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+sys.path.append('/home/Documents/sar-app/')
 
 from common.db import *
 from static.constants import *

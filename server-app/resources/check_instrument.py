@@ -1,9 +1,9 @@
 from flask_restful import Resource
 from flask import jsonify
 
-import os, sys
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+sys.path.append('/home/Documents/sar-app/')
 
 from common.common_functions import *
 from static.constants import *

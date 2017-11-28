@@ -8,7 +8,7 @@ from constants import *
 from parameters import *
 from datetime import datetime
 
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+sys.path.append('/home/Documents/sar-app')
 
 from api import vna, rail
 from common.db import *
