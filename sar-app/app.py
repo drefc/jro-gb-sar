@@ -18,6 +18,7 @@ import time
 app = Flask(__name__)
 app.config.from_object('config')
 
+'''
 start_time = datetime.utcnow().replace(tzinfo = app.config['FROM_ZONE'])
 start_time = start_time.astimezone(app.config['TO_ZONE'])
 
@@ -29,6 +30,7 @@ logging.basicConfig(level = logging.DEBUG,
 		    filemode = 'w')
 
 logging.info('App started running at ' + str(start_time))
+'''
 
 api = Api(app)
 api.add_resource(CheckInstrument, '/instrument/check/<string:instrument_name>')
@@ -37,6 +39,7 @@ api.add_resource(ExperimentConfiguration, '/configuration/<string:instruction>',
 api.add_resource(ExperimentControl, '/experiment/<string:instruction>')
 
 if __name__ == '__main__':
+	check_existing_experiment()
 	host = run_vpn(check_vpn)
 
 	if host:

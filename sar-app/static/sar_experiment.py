@@ -7,6 +7,7 @@ import threading
 from constants import *
 from parameters import *
 from datetime import datetime
+from tasks import send_data
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
@@ -19,6 +20,9 @@ class sar_experiment(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
+        #CONFIGURATION CHECKED BY THE GUI PRIOR TO INSTANCIATING THREAD
+        #ON REBOOT, THE APP MUST CHECK IF THERE IS A CURRENT CONFIGURATION,
+        #AND IF THERE IS AN EXPERIMENT RUNNING, RESUME IT
         query = configuration_collection.find_one({"name" : "current_configuration"})
         current_configuration_id = query['config_id']
         current_configuration = configuration_collection.find_one({"_id" : current_configuration_id})
@@ -57,8 +61,12 @@ class sar_experiment(threading.Thread):
         rail.connect()
         rail.zero()
 
-        query=experiment_collection.find_one({"name" : "current_experiment"})
+        #DID THE INSTRUMENT UNEXPECTADLY SHUT DOWN?
+        query=experiment_collection.find_one({"_id" : "current_experiment"})
 
+        #IF NOT, THIS IS A NEW EXPERIMENT, AND WILL MAKE NEW FOLDER FOR DATA
+        #STORAGE, AND WILL UPDATE THE current_experiment COLLECTION, SO IT STATES
+        #THAT THERE IS AN EXPERIMENT RUNNING
         if query is None:
             start_time = datetime.utcnow().replace(tzinfo = FROM_ZONE)
             start_time = take_time.astimezone(TO_ZONE)
@@ -69,12 +77,14 @@ class sar_experiment(threading.Thread):
             #should log the folder creation
             data_take = 1
 
-            post = {"name" : "current_experiment",
+            post = {"_id" : "current_experiment",
                     "folder_name" : current_experiment,
                     "status" : "running",
                     "last_data_take" : data_take}
             experiment_collection.insert_one(post)
 
+        #IF IT WAS UNEXPECTADLY SHUT DOWN, THEN THE STATUS WILL BE READ FROM THE
+        #COLLECTION AND THE EXPERIMENT WILL RESUME
         status = query['status']
 
         if status is not None:
@@ -82,6 +92,7 @@ class sar_experiment(threading.Thread):
                 data_take=query['last_data_take']
                 folder_name=query['folder_name']
 
+            '''
             if status=='not running':
                 start_time = datetime.utcnow().replace(tzinfo = FROM_ZONE)
                 start_time = start_time.astimezone(TO_ZONE)
@@ -96,24 +107,25 @@ class sar_experiment(threading.Thread):
                         "status" : "running",
                         "last_data_take" : data_take}
                 experiment_collection.find_one_and_update({'_id': query['_id']}, '$set': post)
+            '''
 
         while True:
-            if not self.xi == 0:
+            if self.xi!=0:
                 rail.send_move(self.xi, 'R')
                 time.sleep(2)
 
-            file_name = 'dset_{}.hdf5'.format(data_take)
-            f = h5py.File(experiment_path + file_name, 'w')
-            dset = f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype = np.complex64)
-            data = vector_network_analyzer.send_sweep()
-            dset[0,:] = data
+            file_name='dset_{}.hdf5'.format(data_take)
+            file_path=experiment_path+file_name
+            f=h5py.File(file_path, 'w')
+            dset=f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype = np.complex64)
+            data=vector_network_analyzer.send_sweep()
+            dset[0,:]=data
 
             for j in range(1, self.npos):
                 if self.stop_flag:
                     rail.close()
                     vector_network_analyzer.close()
                     f.close()
-                    os.remove(experiment_path + file_name)
                     break
 
                 rail.send_move(self.dx, 'R')
@@ -143,10 +155,13 @@ class sar_experiment(threading.Thread):
                 break
 
     	    f.close()
+            send_data(file_path)
             rail.send_zero_position()
-            g.open(APP_PATH + "/tmp/last_data_take.tmp", "w")
-            g.write(str(data_take))
-            data_take = data_take + 1
+            data_take=data_take+1
+
+
+        if self.stop_flag:
+            os.remove(file_path)
 
     def stop(self):
         self.stop_flag = True

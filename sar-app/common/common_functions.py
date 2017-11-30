@@ -1,7 +1,12 @@
 from os import system as system_call
 from platform import system as system_name
 
-import netifaces
+import netifaces, db, os, sys
+
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+
+from MyGlobals import myglobals
+from common.db import *
 
 def ping(host):
     parameters = "-n 1" if system_name().lower()=="windows" else "-cq 1"
@@ -33,3 +38,14 @@ def check_vpn(address):
 	except Exception as e:
 		pass
 	return (False,)
+
+def check_existing_experiment():
+    query=configuration_collection.find_one({"name" : "current_configuration"})
+
+    if query is not None:
+        query=experiment_collection.find_one({"name" : "current_experiment"})
+        if query is not None:
+            status = query['status']
+            if status=='running':
+                myglobals.experiment=sar_experiment()
+                myglobals.experiment.start()

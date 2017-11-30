@@ -18,31 +18,17 @@ class JSONEncoder(json.JSONEncoder):
 
 class ExperimentConfiguration(Resource):
     def get(self, instruction, config_id = None):
-		if instruction == 'list':
-			if configuration_collection.find().count() == 0:
-				return jsonify("No configurations available")
-			else:
-				list_of_configurations = list(configuration_collection.find())
-				list_of_configurations = JSONEncoder().encode(list_of_configurations)
-				return list_of_configurations
-
-		if instruction == 'use' and config_id is not None:
-			query = configuration_collection.find_one({"_id" : ObjectId(config_id)})
-			post = {'name' : 'current_configuration',
-					'config_id' : ObjectId(config_id)}
-			configuration_collection.insert_one(post)
-			return jsonify(config = config_id)
-
-		if instruction == 'current_configuration':
-			query = configuration_collection.find_one({"name" : "current_configuration"})
-			config_id = query['config_id']
-			current_configuration = configuration_collection.find_one({"_id" : config_id})
-			return str(current_configuration)
+		if instruction=='current_configuration':
+			current_configuration=configuration_collection.find_one({"_id":"current_configuration"})
+			return jsonify(current_configuration=str(current_configuration))
 
     def put(self, instruction):
-		if instruction == 'new':
-			data = request.get_json(force = True)
-			new_config = ast.literal_eval(json.dumps(data))
+		if instruction=='set_configuration':
+			data=request.get_json(force=True)
+			new_config=ast.literal_eval(json.dumps(data))
 
-			configuration_collection.insert_one(new_config)
-			return jsonify(newconfiguration = data)
+			configuration=configuration_collection.find_one_and_update({"_id":"current_configuration"},
+                                                                       {"$set":{"configuration": new_config}},
+                                                                       projection={"configuration":True, "_id":False},
+                                                                       upsert=True)
+			return jsonify(inserted_configuration=str(configuration))
