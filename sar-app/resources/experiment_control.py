@@ -13,20 +13,22 @@ from MyGlobals import myglobals
 
 class ExperimentControl(Resource):
 	def get(self, instruction):
-		if instruction=='start' and myglobals.experiment==None:
+		if myglobals.experiment is None:
+			return jsonify(status=str(myglobals.experiment))
+
+		if instruction=='start':
 			myglobals.experiment=sar_experiment()
 			myglobals.experiment.start()
-			return jsonify('Experiment started running')
-		elif instruction=='start' and myglobals.experiment.isAlive():
-			return jsonify('An experiment is running')
+			msg="experiment started"
 
-		if instruction=='stop' and myglobals.experiment!=None:
+		if instruction=='stop':
 			if myglobals.experiment.isAlive():
 				myglobals.experiment.stop()
-			else:
-				return jsonify('Experiment already stopped')
+				msg="experiment stopped"
 
 		if instruction=='status':
-			#query for status
-			#return jsonify(status=status)
-			pass
+			if myglobals.experiment.isAlive():
+				msg="experiment running"
+			else:
+				msg="no experiment running"
+		return jsonify(status=msg)
