@@ -201,7 +201,9 @@ class vnaClient():
         self.send(data = SCPI_TRACE_FORMAT %(2, "PHAS"))
         self.send(data = SCPI_SWEEP_TYPE)
         self.send(data = SCPI_INIT_OFF)
-        print "vna succesfuly configured!"
+        time.sleep(5)
+        return
+        #print "vna succesfuly configured!"
 
     def send_sweep(self):
         #Configure the data format as REAL,64

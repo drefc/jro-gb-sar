@@ -19,23 +19,22 @@ from static import *
 class sar_experiment(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
+        query=configuration_collection.find_one({"_id":"current_configuration"})
+        current_configuration=query['configuration']
 
-        #CONFIGURATION CHECKED BY THE GUI PRIOR TO INSTANCIATING THREAD
-        #ON REBOOT, THE APP MUST CHECK IF THERE IS A CURRENT CONFIGURATION,
-        #AND IF THERE IS AN EXPERIMENT RUNNING, RESUME IT
-        query = configuration_collection.find_one({"name" : "current_configuration"})
-        current_configuration_id = query['config_id']
-        current_configuration = configuration_collection.find_one({"_id" : current_configuration_id})
+        '''
+        The config shall be checked by the web interface before starting an experiment
+        '''
 
-        self.collection_name = current_configuration['collection_name']
-        self.xi = current_configuration['xi']
-        self.xf = current_configuration['xf']
-        self.fi = current_configuration['fi']
-        self.ff = current_configuration['ff']
-        self.nfre = current_configuration['nfre']
-        self.ptx = current_configuration['ptx']
-        self.ifbw = current_configuration['ifbw']
-        self.beam_angle = current_configuration['beam_angle']
+        self.collection_name=current_configuration['collection_name']
+        self.xi=current_configuration['xi']
+        self.xf=current_configuration['xf']
+        self.fi=current_configuration['fi']
+        self.ff=current_configuration['ff']
+        self.nfre=current_configuration['nfre']
+        self.ptx=current_configuration['ptx']
+        self.ifbw=current_configuration['ifbw']
+        self.beam_angle=current_configuration['beam_angle']
 
         self.beam_angle = (180 - beam_angle) / 2.0
         self.xi = int(self.xi * METERS_TO_STEPS_FACTOR)
@@ -46,7 +45,7 @@ class sar_experiment(threading.Thread):
         self.stop_flag = False
 
     def run(self):
-        vector_network_analyzer = vna.vnaClient()
+        vector_network_analyzer=vna.vnaClient()
         vector_network_analyzer.connect()
         vector_network_analyzer.send_ifbw(self.ifbw)
         vector_network_analyzer.send_number_points(self.nfre)
@@ -55,87 +54,40 @@ class sar_experiment(threading.Thread):
         vector_network_analyzer.send_power(self.ptx)
         vector_network_analyzer.send_select_instrument()
         vector_network_analyzer.send_cfg()
-        time.sleep(5)
 
-        rail = rail.railClient()
+        rail=rail.railClient()
         rail.connect()
         rail.zero()
 
-        #DID THE INSTRUMENT UNEXPECTADLY SHUT DOWN?
-        query=experiment_collection.find_one({"_id" : "current_experiment"})
+        query=experiment_collection.find_one({"_id":"current_experiment"})
 
-        #IF NOT, THIS IS A NEW EXPERIMENT, AND WILL MAKE NEW FOLDER FOR DATA
-        #STORAGE, AND WILL UPDATE THE current_experiment COLLECTION, SO IT STATES
-        #THAT THERE IS AN EXPERIMENT RUNNING
-        if query is None:
-            start_time = datetime.utcnow().replace(tzinfo = FROM_ZONE)
-            start_time = take_time.astimezone(TO_ZONE)
-            current_experiment = "{}_{}".format(self.collection_name, strftime("%d-%m-%y_%H:%M:%S"))
-            experiment_path = DATA_PATH + current_experiment
+        if query:
+            data_take=query['experiment']['last_data_take']
+            folder_name=query['experiment']['folder_name']
+        else:
+            start_time=datetime.utcnow().replace(tzinfo=FROM_ZONE)
+            start_time=take_time.astimezone(TO_ZONE)
+            folder_name="{}_{}".format(self.collection_name, start_time.strftime("%d-%m-%y_%H:%M:%S"))
+            experiment_path=DATA_PATH+folder_name
 
             os.mkdir(experiment_path)
             #should log the folder creation
             data_take = 1
 
-            post = {"_id" : "current_experiment",
-                    "folder_name" : current_experiment,
-                    "status" : "running",
-                    "last_data_take" : data_take}
-            experiment_collection.insert_one(post)
-
-        #IF IT WAS UNEXPECTADLY SHUT DOWN, THEN THE STATUS WILL BE READ FROM THE
-        #COLLECTION AND THE EXPERIMENT WILL RESUME
-        status = query['status']
-
-        if status is not None:
-            if status=='running':
-                data_take=query['last_data_take']
-                folder_name=query['folder_name']
-
-            '''
-            if status=='not running':
-                start_time = datetime.utcnow().replace(tzinfo = FROM_ZONE)
-                start_time = start_time.astimezone(TO_ZONE)
-                experiment_path = DATA_PATH + self.collection_name
-
-                os.mkdir(experiment_path)
-                data_take = 1
-
-                current_experiment = "{}_{}".format(self.collection_name, strftime("%d-%m-%y_%H:%M:%S"))
-                post = {"name" : "current_experiment",
-                        "folder_name" : current_experiment,
-                        "status" : "running",
-                        "last_data_take" : data_take}
-                experiment_collection.find_one_and_update({'_id': query['_id']}, '$set': post)
-            '''
+            experiment={"folder_name":folder_name,
+                        "last_data_take":data_take}
+            experiment_collection.find_one_and_update({"_id":"current_experiment"},
+                                                      {"$set":{"experiment": experiment}},
+                                                      upsert=True)
 
         while True:
             if self.xi!=0:
-                rail.send_move(self.xi, 'R')
-                time.sleep(2)
+                rail.move(self.xi, 'R')
 
             file_name='dset_{}.hdf5'.format(data_take)
             file_path=experiment_path+file_name
             f=h5py.File(file_path, 'w')
             dset=f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype = np.complex64)
-            data=vector_network_analyzer.send_sweep()
-            dset[0,:]=data
-
-            for j in range(1, self.npos):
-                if self.stop_flag:
-                    rail.close()
-                    vector_network_analyzer.close()
-                    f.close()
-                    break
-
-                rail.send_move(self.dx, 'R')
-                time.sleep(2)
-                data = vector_network_analyzer.send_sweep()
-                dset[j,:] = data
-
-            take_time = datetime.utcnow().replace(tzinfo = FROM_ZONE)
-            take_time = take_time.astimezone(TO_ZONE)
-
             dset.attrs['xi'] = self.xi / METERS_TO_STEPS_FACTOR
             dset.attrs['xf'] = self.xf / METERS_TO_STEPS_FACTOR
             dset.attrs['dx'] = self.dx / METERS_TO_STEPS_FACTOR
@@ -148,6 +100,23 @@ class sar_experiment(threading.Thread):
             dset.attrs['beam_angle'] = self.beam_angle
             dset.attrs['datetime'] = take_time.strftime("%d-%m-%y %H:%M:%S")
 
+            data=vector_network_analyzer.send_sweep()
+            dset[0,:]=data
+
+            for j in range(1, self.npos):
+                if self.stop_flag:
+                    rail.close()
+                    vector_network_analyzer.close()
+                    f.close()
+                    break
+
+                rail.send_move(self.dx, 'R')
+                data = vector_network_analyzer.send_sweep()
+                dset[j,:] = data
+
+            take_time = datetime.utcnow().replace(tzinfo = FROM_ZONE)
+            take_time = take_time.astimezone(TO_ZONE)
+
             if self.stop_flag:
                 f.close()
                 vector_network_analyzer.close()
@@ -159,12 +128,8 @@ class sar_experiment(threading.Thread):
             rail.send_zero_position()
             data_take=data_take+1
 
-
         if self.stop_flag:
             os.remove(file_path)
 
     def stop(self):
         self.stop_flag = True
-
-if __name__ == '__main__':
-    pass

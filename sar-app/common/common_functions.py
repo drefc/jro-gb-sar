@@ -40,12 +40,12 @@ def check_vpn(address):
 	return (False,)
 
 def check_existing_experiment():
-    query=configuration_collection.find_one({"name" : "current_configuration"})
+    query=configuration_collection.find_one({"_id":"current_configuration"})
 
-    if query is not None:
-        query=experiment_collection.find_one({"name" : "current_experiment"})
-        if query is not None:
-            status = query['status']
+    if query:
+        query=experiment_collection.find_one({"_id" : "current_experiment"})
+        if query:
+            status=query['status']
             if status=='running':
                 myglobals.experiment=sar_experiment()
                 myglobals.experiment.start()

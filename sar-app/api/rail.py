@@ -8,8 +8,12 @@ sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
 from static import constants
 
-RAIL_INSTRUCTIONS = {'move' : '0\n', 'calibrate' : '1\n', 'zero' : '2\n',
-                     'stop' : '3\n', 'disconnect' : '4\n'}
+RAIL_INSTRUCTIONS = {'move' : '0\n',
+                     'calibrate' : '1\n',
+                     'zero' : '2\n',
+                     'stop' : '3\n',
+                     'disconnect' : '4\n'}
+
 PORT = 12345
 BUFFER_LENGTH = 10000
 
@@ -65,7 +69,6 @@ class railClient():
         if 0 < steps < (1450 * 20000 / 66.0):
             steps = steps
         else:
-            #print 'steps out of range (0 - 439 393)'
             return
 
         if direction is None:
@@ -73,33 +76,22 @@ class railClient():
         else:
             direction = direction
 
-        #self.steps = steps
-        #self.direction = direction
         self.send(data = RAIL_INSTRUCTIONS['move'] + str(steps) + str(direction) + '\n')
-        #print "instruction sent: move %.8f to the right" %(steps*1.0 / METERS_TO_STEPS_FACTOR)
-        #print self.recv()
+        ack=self.rcv()
+        time.sleep(2)
+        return
 
     def stop(self):
         self.send(data = RAIL_INSTRUCTIONS['stop'] + '\n')
-        #print "instruction sent: stop"
-
-    '''
-    def send_calibrate(self):
-        self.send(data = RAIL_INSTRUCTIONS['calibrate'] + '\n')
-        print "instruction sent: start calibration"
-        #print self.recv()
-    '''
 
     def zero(self):
         self.send(data = RAIL_INSTRUCTIONS['zero'] + '\n')
-        #print "instruction sent: move to zero position"
-        print self.recv()
-        #if int(self.recv()) < 0:
-        #    print "error while returning to zero position, please check switch"
+        ack=self.recv()
+        return ack
 
     def end_connection(self):
         self.send(data = RAIL_INSTRUCTIONS['disconnect'] + '\n')
-        print self.recv()
+        ack=self.recv()
 
     def close(self):
         self.socket.close()

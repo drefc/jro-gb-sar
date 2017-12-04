@@ -1,7 +1,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <string.h>
-#include <Servo.h>
 
 #define DUTY_CYCLE 0.6
 #define LEFT LOW
@@ -18,7 +17,6 @@ int switch_right = 6;
 int vna_power = 2;
 int pa_power = 3;
 int motor_power = 4;
-Servo servo_button;
 
 /********************************************************************/
 
@@ -61,8 +59,6 @@ void setup()
   digitalWrite(vna_power, LOW);
   digitalWrite(pa_power, LOW);
   digitalWrite(motor_power, LOW);
-
-  servo_button.attach(10);
 
   Ethernet.begin(mac, ip, gateway, subnet);  
   server.begin();
@@ -164,27 +160,7 @@ void listen_instruction(EthernetClient client)
           digitalWrite(pa_power, HIGH);
           server.println("PA ON\n");
         }
-      }
-
-      if (header == '7')
-      {
-        char press_button = (instruction.substring(instruction.length() - 1, instruction.length() - 2)).charAt(0);
-
-        if (press_button == '1')
-        {
-          for (servo_pos=0; servo_pos<=55; servo_pos+=1)
-          {
-            servo_button.write(servo_pos);
-            delay(15);
-          }
-          delay(1000);
-          for (servo_pos=55; servo_pos>=0; servo_pos-=1)
-          {
-            servo_button.write(servo_pos);
-            delay(15);
-          }
-        }
-      }
+      }      
     }
   }  
 }
