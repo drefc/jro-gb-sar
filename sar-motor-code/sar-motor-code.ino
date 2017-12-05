@@ -105,20 +105,11 @@ void listen_instruction(EthernetClient client)
         }
       }
 
-      //calibrate motor, store number of steps from side to side
-      if (header == '1')
-      {        
-        calibrate(client);
-        server.print(String(steps_max) + '\n');
-      }
-
       //go to zero position on the rail
       if (header == '2')
-      {
-        calibration_flag = true;
+      {        
         zero_position(client);
         server.println("OK\n");
-        calibration_flag = false;        
       }
 
       //end connection
@@ -276,7 +267,7 @@ void zero_position(EthernetClient client)
     }
     */
         
-    if (digitalRead(switch_left) == HIGH)
+    if (digitalRead(switch_right) == HIGH)
     {
       timer_off();      
       digitalWrite(motor_direction, RIGHT);
@@ -284,7 +275,7 @@ void zero_position(EthernetClient client)
 
       while (1)
       {
-        if (digitalRead(switch_left) == LOW)
+        if (digitalRead(switch_right) == LOW)
           break;
       }
       timer_off();      

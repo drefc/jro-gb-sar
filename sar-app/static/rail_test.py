@@ -1,11 +1,11 @@
-from constants import *
-from parameters import *
-import rail_api
+import os, sys
 
-rail = rail_api.railClient()
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+
+from api import rail
+
+rail=rail.railClient()
 rail.connect()
-#rail.send_zero_position()
-rail.send_move(60000, 'R')
-
+rail.move(10000,'L')
 rail.end_connection()
 rail.close()

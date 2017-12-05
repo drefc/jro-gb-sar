@@ -6,13 +6,12 @@ import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
-from static import constants
+from static.constants import *
 
-RAIL_INSTRUCTIONS = {'move' : '0\n',
-                     'calibrate' : '1\n',
-                     'zero' : '2\n',
-                     'stop' : '3\n',
-                     'disconnect' : '4\n'}
+RAIL_INSTRUCTIONS = {'move' : '0',
+                     'zero' : '2',
+                     'stop' : '3',
+                     'disconnect' : '4'}
 
 PORT = 12345
 BUFFER_LENGTH = 10000
@@ -34,65 +33,45 @@ class railClient():
         try:
             self.socket.connect((self.host, self.port))
         except socket.error:
-            self.close()
+            self.socket.close()
 
     def send(self, data):
         try:
             self.socket.send(data)
         except socket.error:
-            #print "could not send instruction to the rail"
-            pass
-
-        #if self.error < 0:
-        #    print "could not send instruction to the rail"
-        #else:
-        #    print "instruction sent: %s" %data
+            print "could not send instruction to the rail"
 
     def receive(self):
-        data = ''
-        aux = ''
-        flag = False
+        data=''
+        buff=''
 
         while True:
-            aux = self.socket.recv(1)
-            if aux == '\n':
+            buff=self.socket.recv(1)
+            if buff=='\n':
                 break
-            data = data + aux
-            #else:
-            #    break
-
-            #if flag:
-            #    break
+            data=data+buff
         return data
 
-    def move(self, steps, direction = None):
-        if 0 < steps < (1450 * 20000 / 66.0):
-            steps = steps
-        else:
-            return
-
+    def move(self, steps, direction=None):
         if direction is None:
-            direction = 'R'
+            direction='R'
         else:
-            direction = direction
+            direction=direction
 
-        self.send(data = RAIL_INSTRUCTIONS['move'] + str(steps) + str(direction) + '\n')
-        ack=self.rcv()
+        self.send(data=RAIL_INSTRUCTIONS['move']+str(steps)+str(direction)+'\n')
+        ack=self.receive()
         time.sleep(2)
-        return
 
     def stop(self):
         self.send(data = RAIL_INSTRUCTIONS['stop'] + '\n')
 
     def zero(self):
         self.send(data = RAIL_INSTRUCTIONS['zero'] + '\n')
-        ack=self.recv()
-        return ack
+        ack=self.receive()
 
     def end_connection(self):
         self.send(data = RAIL_INSTRUCTIONS['disconnect'] + '\n')
-        ack=self.recv()
+        ack=self.receive()
 
     def close(self):
         self.socket.close()
-        #print "connection to the rail closed"

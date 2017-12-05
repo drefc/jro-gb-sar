@@ -24,7 +24,9 @@ class ExperimentConfiguration(Resource):
 
     def put(self, instruction):
 		if instruction=='set_configuration':
+            print 'hola'
 			data=request.get_json(force=True)
+            print data
 			new_config=ast.literal_eval(json.dumps(data))
 
 			configuration=configuration_collection.find_one_and_update({"_id":"current_configuration"},
