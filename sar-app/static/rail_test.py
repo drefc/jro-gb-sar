@@ -6,6 +6,6 @@ from api import rail
 
 rail=rail.railClient()
 rail.connect()
-rail.move(10000,'L')
+rail.move(10000)
 rail.end_connection()
 rail.close()

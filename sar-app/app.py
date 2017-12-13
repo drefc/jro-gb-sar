@@ -39,7 +39,7 @@ api.add_resource(ExperimentConfiguration, '/configuration/<string:instruction>',
 api.add_resource(ExperimentControl, '/experiment/<string:instruction>')
 
 if __name__ == '__main__':
-	check_existing_experiment()
+	#check_existing_experiment()
 	host = run_vpn(check_vpn)
 
 	if host:

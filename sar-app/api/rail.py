@@ -71,7 +71,6 @@ class railClient():
 
     def end_connection(self):
         self.send(data = RAIL_INSTRUCTIONS['disconnect'] + '\n')
-        ack=self.receive()
-
+        
     def close(self):
         self.socket.close()

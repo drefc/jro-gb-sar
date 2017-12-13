@@ -14,7 +14,7 @@ from MyGlobals import myglobals
 class ExperimentControl(Resource):
 	def get(self, instruction):
 		if myglobals.experiment is None:
-			return jsonify(status=str(myglobals.experiment))
+			msg=str(myglobals.experiment)
 
 		if instruction=='start':
 			myglobals.experiment=sar_experiment()
