@@ -131,7 +131,7 @@ class sar_experiment(threading.Thread):
                 #break
 
     	    #f.close()
-            #send_data(file_path)
+            send_data.delay(file_path)
             #self.rail.zero()
             data_take=data_take+1
 	    experiment_collection.update_one({"_id" : "current_experiment"},
