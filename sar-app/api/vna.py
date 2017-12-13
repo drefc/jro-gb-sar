@@ -58,9 +58,9 @@ class vnaClient():
                 self.s = None
 
         if self.s is None:
-            print "could not establish connection to the vna"
+            print "could not connect to VNA"
         else:
-            print "connection to the vna established"
+            print "connected"
 
     def send(self, data):
         self.error = 0
@@ -71,7 +71,7 @@ class vnaClient():
             self.error = -1
 
         if self.error < 0:
-            print "could not send instruction to the vna"
+            print "could not send instruction"
         #else:
         #    print 'Data sent: %s\n' % data
 
@@ -236,9 +236,9 @@ class vnaClient():
 
         data_array = np.fromstring(DATA, dtype = np.complex64)
         #print data_array.shape
-        print "sweep sent and data received!"
+        print "data received!"
         return data_array
 
     def close(self):
         self.s.close()
-        print 'connection to the vna closed'
+        print "connection closed"
