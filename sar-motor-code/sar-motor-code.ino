@@ -107,15 +107,17 @@ void listen_instruction(EthernetClient client)
 
       //go to zero position on the rail
       if (header == '2')
-      {        
+      { 
+        calibration_flag=true;
         zero_position(client);
         server.println("OK\n");
+        calibration_flag=false;
       }
 
       //end connection
       if (header == '4')
       {
-        server.println("Bye\n");
+        //server.println("Bye\n");
         break;
       }
 
