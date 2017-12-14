@@ -8,7 +8,7 @@ import atexit
 from constants import *
 from parameters import *
 from datetime import datetime
-from tasks import send_data
+from proj.tasks import send_data
 
 print os.path.abspath(os.path.join(os.getcwd(), os.pardir))
 
@@ -40,7 +40,6 @@ class sar_experiment(threading.Thread):
         self.ifbw=current_configuration['ifbw']
         self.beam_angle=current_configuration['beam_angle']
 
-        #self.beam_angle = (180.0 - self.beam_angle) / 2.0
         self.xi = int(self.xi * METERS_TO_STEPS_FACTOR)
         self.xf = int(self.xf * METERS_TO_STEPS_FACTOR)
         self.dx = int((c0  / (4.0 * self.ff * 1E9 * np.cos(0.5 * (180.0 - self.beam_angle) * np.pi / 180.0))) * METERS_TO_STEPS_FACTOR)
@@ -58,8 +57,8 @@ class sar_experiment(threading.Thread):
         self.vna.send_select_instrument()
         self.vna.send_cfg()
 
-	#self.rail.connect()
-	#self.rail.zero()
+	self.rail.connect()
+	self.rail.zero()
 
         query=experiment_collection.find_one({"_id":"current_experiment"})
 
@@ -84,8 +83,8 @@ class sar_experiment(threading.Thread):
                                                       upsert=True)
 
         while True:
-            #if self.xi!=0:
-            #    self.rail.move(self.xi, 'R')
+            if self.xi!=0:
+                self.rail.move(self.xi, 'R')
 	
 	   	    
             file_name='dset_{}.hdf5'.format(data_take)
@@ -100,7 +99,7 @@ class sar_experiment(threading.Thread):
                 if self.stop_flag:
 		    break
 
-                #self.rail.move(self.dx, 'R')
+                self.rail.move(self.dx, 'R')
                 data=self.vna.send_sweep()
                 dset[j,:]=data
 
@@ -122,31 +121,16 @@ class sar_experiment(threading.Thread):
             dset.attrs['beam_angle']=self.beam_angle
             dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
 
-            #if self.stop_flag:
-		#print 'closing file'
-                #f.close()
-                #vector_network_analyzer.close()
-		#self.rail.end_connection()
-                #self.rail.close()
-                #break
-
-    	    #f.close()
             send_data.delay(file_path)
-            #self.rail.zero()
             data_take=data_take+1
 	    experiment_collection.update_one({"_id" : "current_experiment"},
 					     { "$inc": { "experiment.last_data_take": 1} })
-        #if self.stop_flag:
-            #os.remove(file_path)
 
     def stop(self):
         self.stop_flag=True
 
     def cleanup(self):
 	try:
-	    print 'cleanup'
-	    #self.rail.end_connection()
-	    #self.rail.close()	
 	    self.vna.close()
 	    f.close()
 	except:
