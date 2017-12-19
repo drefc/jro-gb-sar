@@ -1,19 +1,20 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_restful import Resource, reqparse
-import werkzeug
+import werkzeug, json
 
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
 from common.common_functions import *
+from config import *
 
 class ReceiveData(Resource):
     def post(self):
-        parse=reqparse.RequestParser()
-        parse.add_argument('file', type=werkzeug.datastructures.FileStorage, location='files')
-        args=parse.parse_args()
-        my_file=args['file']
-        #define where to store the files here!
-        #print args
-        my_file.save()
+        parser=reqparse.RequestParser()
+        parser.add_argument('file', type=werkzeug.datastructures.FileStorage, location='files')
+        args=parser.parse_args()
+        f=args['file']
+        collection_name=request.headers['collection_name']
+
+        print collection_name, f

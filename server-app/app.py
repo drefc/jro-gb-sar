@@ -23,4 +23,4 @@ if __name__ == '__main__':
 	host = run_vpn(check_vpn)
 
 	if host:
-		app.run(host = host, port = 4500, debug = app.config['DEBUG'])
+		app.run(host = host, port = 4500, debug=True)
