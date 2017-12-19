@@ -23,14 +23,14 @@ from static import *
 class sar_experiment(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
-	self.rail=rail.railClient()
-	self.vna=vna.vnaClient()
-	atexit.register(self.cleanup)
-	
+        self.rail=rail.railClient()
+        self.vna=vna.vnaClient()
+        atexit.register(self.cleanup)
+
         query=configuration_collection.find_one({"_id":"current_configuration"})
         current_configuration=query['configuration']
 
-	self.collection_name=current_configuration['collection_name']
+        self.collection_name=current_configuration['collection_name']
         self.xi=current_configuration['xi']
         self.xf=current_configuration['xf']
         self.fi=current_configuration['fi']
@@ -57,19 +57,19 @@ class sar_experiment(threading.Thread):
         self.vna.send_select_instrument()
         self.vna.send_cfg()
 
-	self.rail.connect()
-	self.rail.zero()
+        self.rail.connect()
+        self.rail.zero()
 
         query=experiment_collection.find_one({"_id":"current_experiment"})
 
         if query:
             data_take=query['experiment']['last_data_take']
             folder_name=query['experiment']['folder_name']
-	    experiment_path=DATA_PATH+folder_name
+            experiment_path=DATA_PATH+folder_name
         else:
             start_time=datetime.utcnow().replace(tzinfo=FROM_ZONE)
             start_time=start_time.astimezone(TO_ZONE)
-            folder_name="{}_{}/".format(self.collection_name, start_time.strftime("%d-%m-%y_%H:%M:%S"))
+            folder_name="{}_{}".format(self.collection_name, start_time.strftime("%d-%m-%y_%H:%M:%S"))
             experiment_path=DATA_PATH+folder_name
 
             os.mkdir(experiment_path)
@@ -85,13 +85,12 @@ class sar_experiment(threading.Thread):
         while True:
             if self.xi!=0:
                 self.rail.move(self.xi, 'R')
-	
-	   	    
-            file_name='dset_{}.hdf5'.format(data_take)
+
+            file_name='/dset_{}.hdf5'.format(data_take)
             file_path=experiment_path+file_name
             f=h5py.File(file_path, 'w')
             dset=f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype = np.complex64)
-	    
+
             data=self.vna.send_sweep()
             dset[0,:]=data
 
@@ -103,9 +102,9 @@ class sar_experiment(threading.Thread):
                 data=self.vna.send_sweep()
                 dset[j,:]=data
 
-	    if self.stop_flag:                
-		os.remove(file_path)
-		break
+	    if self.stop_flag:
+		    os.remove(file_path)
+		    break
 
             take_time=datetime.utcnow().replace(tzinfo = FROM_ZONE)
             take_time=take_time.astimezone(TO_ZONE)
@@ -123,15 +122,15 @@ class sar_experiment(threading.Thread):
 
             send_data.delay(file_path)
             data_take=data_take+1
-	    experiment_collection.update_one({"_id" : "current_experiment"},
-					     { "$inc": { "experiment.last_data_take": 1} })
+            experiment_collection.update_one({"_id" : "current_experiment"},
+					                         {"$inc": { "experiment.last_data_take": 1}})
 
     def stop(self):
         self.stop_flag=True
 
     def cleanup(self):
-	try:
-	    self.vna.close()
-	    f.close()
-	except:
-	    pass
+        try:
+            self.vna.close()
+            f.close()
+        except:
+            pass
