@@ -12,7 +12,8 @@ class ReceiveData(Resource):
     def post(self):
         parse=reqparse.RequestParser()
         parse.add_argument('file', type=werkzeug.datastructures.FileStorage, location='files')
-        args = parse.parse_args()
-        my_file = args['file']
+        args=parse.parse_args()
+        my_file=args['file']
         #define where to store the files here!
-        #my_file.save("your_file_name.jpg")
+        #print args
+        my_file.save()
