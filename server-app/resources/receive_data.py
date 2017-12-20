@@ -14,20 +14,17 @@ class ReceiveData(Resource):
         parser=reqparse.RequestParser()
         parser.add_argument('file', type=werkzeug.datastructures.FileStorage, location='files')
         args=parser.parse_args()
-        f=args['file']
+        data_file=args['file']
         collection_name=request.headers['collection_name']
         upload_path=config.UPLOAD_FOLDER+collection_name
 
         if not os.path.isdir(upload_path):
             os.mkdir(upload_path)
 
-        file_route=self.save_file(f,upload_path+'/')
-        self.insert_file(collection_name, file_route)
+        file_location=os.path.join(upload_path, data_file.name)
+        data_file.save(file_location)
+        self.insert_file(collection_name, file_location)
 
-    def save_file(self, myfile, path):
-        myfile.save(path+myfile)
-        return path+myfile
-
-    def insert_file(self, collection_name, myfile):
+    def insert_file(self, collection_name, file_location):
         tmp=h5py.File(myfile, 'r+')
         
