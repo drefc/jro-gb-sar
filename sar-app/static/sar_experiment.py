@@ -108,6 +108,7 @@ class sar_experiment(threading.Thread):
 
             take_time=datetime.utcnow().replace(tzinfo = FROM_ZONE)
             take_time=take_time.astimezone(TO_ZONE)
+            dset.attrs['take_index']=data_take
             dset.attrs['xi']=1.0 * self.xi / METERS_TO_STEPS_FACTOR
             dset.attrs['xf']=1.0 * self.xf / METERS_TO_STEPS_FACTOR
             dset.attrs['dx']=1.0 * self.dx / METERS_TO_STEPS_FACTOR
