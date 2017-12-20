@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 #SIMPLE WEB DATA RECEIVER
-#will store data in folder defined by "current_experiment" collection
-#in local mongodb
+#stores data files in folder named after "current_experiment" collection
+#appends the stored data in local mongodb for easier retrieving
 
-from flask import Flask, current_app
+from flask import Flask
 from flask_restful import Resource, Api
 from datetime import datetime
 
