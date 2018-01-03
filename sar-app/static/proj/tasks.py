@@ -12,12 +12,13 @@ from static.constants import UPLOAD_DATA_URL as url
 
 #bind the task to the app calling
 @app.task(bind=True)
-def send_data(self, data_path):
+def send_data(self, data_path, collection_name):
+    headers={'collection_name':collection_name}
     files={'file': open(data_path, 'rb')}
     r=requests    
 
     try:
-        r.post(url, files=files)
+        r.post(url, files=files, headers=headers)
     except r.ConnectionError as exc:
 	#not include max_retries will hold the MaxRetriesExceedError value
 	#retry every 10 minutes, for a maximum of 1000 retries
