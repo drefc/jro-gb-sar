@@ -11,9 +11,9 @@ from common.common_functions import *
 from resources.check_instrument import CheckInstrument
 from resources.experiment_configuration import ExperimentConfiguration
 from resources.experiment_control import ExperimentControl
+from resources.foo import Foo
 
-import logging
-import time
+import logging, time, os
 
 app = Flask(__name__)
 app.config.from_object('config')
@@ -37,10 +37,14 @@ api.add_resource(CheckInstrument, '/instrument/check/<string:instrument_name>')
 api.add_resource(ExperimentConfiguration, '/configuration/<string:instruction>',
 				 '/configuration/<string:instruction>/<config_id>')
 api.add_resource(ExperimentControl, '/experiment/<string:instruction>')
+api.add_resource(Foo, '/foo')
 
 if __name__ == '__main__':
-	#check_existing_experiment()
-	host = run_vpn(check_vpn)
+	f=open('/tmp/app-pid', 'w')
+	f.write(str(os.getpid()))
+	f.close()
+	check_existing_experiment()
+	host=run_vpn(check_vpn)
 
 	if host:
 		app.run(host = host, port = 4500, debug = app.config['DEBUG'])

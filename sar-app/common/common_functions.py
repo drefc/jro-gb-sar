@@ -7,10 +7,11 @@ sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
 from MyGlobals import myglobals
 from common.db import *
+from static.sar_experiment import *
 
 def ping(host):
-    parameters = "-n 1" if system_name().lower()=="windows" else "-cq 1"
-    return system_call("ping " + parameters + " " + host) == 0
+    parameters="-n 1" if system_name().lower()=="windows" else "-cq 1"
+    return system_call("ping "+parameters+" "+host)==0
 
 def get_dictionary(list, name):
     return filter(lambda dictionary: dictionary['name'] == name, list)[0]
@@ -45,7 +46,5 @@ def check_existing_experiment():
     if query:
         query=experiment_collection.find_one({"_id" : "current_experiment"})
         if query:
-            status=query['status']
-            if status=='running':
-                myglobals.experiment=sar_experiment()
-                myglobals.experiment.start()
+            myglobals.experiment=sar_experiment()
+            myglobals.experiment.start()

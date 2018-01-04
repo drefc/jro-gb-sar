@@ -11,8 +11,6 @@ from parameters import *
 from datetime import datetime
 from proj.tasks import send_data
 
-print os.path.abspath(os.path.join(os.getcwd(), os.pardir))
-
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 sys.path.append(os.getcwd())
 
@@ -22,10 +20,9 @@ from config import *
 from static import *
 
 class sar_experiment(threading.Thread):
-    self.reset_arduino()
-
     def __init__(self):
 	#thread constructor
+	self.reset_arduino()
         threading.Thread.__init__(self)	
 	#creates rail and vna objects to be available throughout the instance
 	self.rail=rail.railClient()
@@ -106,7 +103,7 @@ class sar_experiment(threading.Thread):
 
             file_path=os.path.join(experiment_path, file_name)
             f=h5py.File(file_path, 'w')
-            dset=f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype = np.complex64)
+            dset=f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype=np.complex64)
 
             data=self.vna.send_sweep()
             dset[0,:]=data
@@ -122,8 +119,7 @@ class sar_experiment(threading.Thread):
 	    if self.stop_flag:
 		break
 	    
-            take_time=datetime.utcnow().replace(tzinf= FROM_ZONE)
-
+	    take_time=datetime.utcnow().replace(tzinf=FROM_ZONE)
             take_time=take_time.astimezone(TO_ZONE)
             dset.attrs['take_index']=data_take
             dset.attrs['xi']=1.0 * self.xi / METERS_TO_STEPS_FACTOR

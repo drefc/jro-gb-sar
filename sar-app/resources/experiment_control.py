@@ -24,9 +24,10 @@ class ExperimentControl(Resource):
 		if instruction=='stop':
 			if myglobals.experiment.isAlive():
 				myglobals.experiment.stop()
+				myglobals.experiment=None
 				msg="experiment stopped"
 
-		if instruction=='status':
+		if instruction=='status' and (myglobals.experiment is not None):
 			if myglobals.experiment.isAlive():
 				msg="experiment running"
 			else:
