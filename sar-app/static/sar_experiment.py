@@ -37,7 +37,7 @@ class sar_experiment(threading.Thread):
         query=configuration_collection.find_one({"_id":"current_configuration"})
         current_configuration=query['configuration']
 
-	self.collection_name=current_configuration['collection_name']
+        self.collection_name=current_configuration['collection_name']
         self.xi=current_configuration['xi']
         self.xf=current_configuration['xf']
         self.fi=current_configuration['fi']
@@ -77,14 +77,14 @@ class sar_experiment(threading.Thread):
         if query:
             data_take=query['experiment']['last_data_take']
             folder_name=query['experiment']['folder_name']
-	    experiment_path=DATA_PATH+folder_name
+            experiment_path=DATA_PATH+folder_name
         else:
 	#if there was not, create a new folder, and append the current datetime to avoid conflicts with repeated 'collection_name' parameters
 	#update (or create if not exists) the 'current_experiment' collection
             start_time=datetime.utcnow().replace(tzinfo=FROM_ZONE)
             start_time=start_time.astimezone(TO_ZONE)
-            folder_name="{}_{}/".format(self.collection_name, start_time.strftime("%d-%m-%y_%H:%M:%S"))
-            experiment_path=DATA_PATH+folder_name
+            folder_name="{}_{}".format(self.collection_name, start_time.strftime("%d-%m-%y_%H:%M:%S"))
+            experiment_path=os.path.join(DATA_PATH, folder_name)
 
             os.mkdir(experiment_path)
             #PENDING: should log the folder creation
@@ -100,13 +100,14 @@ class sar_experiment(threading.Thread):
         while True:
 	    #move to the starting position (only if it is different from 0)
             if self.xi!=0:
-                self.rail.move(self.xi, 'R')	
-	    #the datasets will be named 'dset_{data_take}.hdf5'
-            file_name='dset_{}.hdf5'.format(data_take)
-            file_path=experiment_path+file_name
+                self.rail.move(self.xi, 'R')
+	        #the datasets will be named 'dset_{data_take}.hdf5'
+                file_name='dset_{}.hdf5'.format(data_take)
+
+            file_path=os.path.join(experiment_path, file_name)
             f=h5py.File(file_path, 'w')
             dset=f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype = np.complex64)
-	    
+
             data=self.vna.send_sweep()
             dset[0,:]=data
 
@@ -122,7 +123,9 @@ class sar_experiment(threading.Thread):
 		break
 	    
             take_time=datetime.utcnow().replace(tzinf= FROM_ZONE)
+
             take_time=take_time.astimezone(TO_ZONE)
+            dset.attrs['take_index']=data_take
             dset.attrs['xi']=1.0 * self.xi / METERS_TO_STEPS_FACTOR
             dset.attrs['xf']=1.0 * self.xf / METERS_TO_STEPS_FACTOR
             dset.attrs['dx']=1.0 * self.dx / METERS_TO_STEPS_FACTOR
@@ -143,7 +146,6 @@ class sar_experiment(threading.Thread):
 	    #move rail to zero position
 	    self.rail.zero()
 	self.cleanup()
-
 
     def stop(self):
         self.stop_flag=True
