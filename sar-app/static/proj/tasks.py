@@ -13,9 +13,9 @@ from common.db import *
 
 #bind the task to the calling app
 @app.task(bind=True)
-def send_data(self, data_path, collection_name):
+def send_data(self, filename, data_path, collection_name):
     headers={'collection_name':collection_name}
-    files={'file': open(data_path, 'rb')}
+    files={'file': (filename, open(data_path, 'rb'))}
     r=requests
 
     try:

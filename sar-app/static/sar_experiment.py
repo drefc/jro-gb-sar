@@ -135,7 +135,7 @@ class sar_experiment(threading.Thread):
             dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
 	    f.close()
 	    #celery task to send the data to the main server
-            send_data.delay(file_path, self.collection_name)
+            send_data.delay(file_name, file_path, self.collection_name)
             data_take=data_take+1
 	    experiment_collection.update_one({"_id" : "current_experiment"},
 					     {"$inc": { "experiment.last_data_take": 1}})
