@@ -12,7 +12,7 @@ from static.constants import UPLOAD_DATA_URL as url
 from common.db import *
 
 #bind the task to the calling app
-@app.task(bind=True)
+@app.task(name='static.proj.tasks.send_data', bind=True)
 def send_data(self, filename, data_path, collection_name):
     headers={'collection_name':collection_name}
     files={'file': (filename, open(data_path, 'rb'))}

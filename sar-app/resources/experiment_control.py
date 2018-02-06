@@ -2,7 +2,7 @@ from flask_restful import Resource
 from flask import jsonify, request
 from datetime import datetime
 
-import os, sys
+import os, sys, time
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
@@ -13,23 +13,25 @@ from MyGlobals import myglobals
 
 class ExperimentControl(Resource):
 	def get(self, instruction):
-		if myglobals.experiment is None:
-			msg=str(myglobals.experiment)
-
-		if instruction=='start':
+		if instruction=="start" and myglobals.experiment is None:
 			myglobals.experiment=sar_experiment()
 			myglobals.experiment.start()
-			msg="experiment started"
+			time.sleep(5)
+			return jsonify(status="experiment started")
 
-		if instruction=='stop':
-			if myglobals.experiment.isAlive():
-				myglobals.experiment.stop()
-				myglobals.experiment=None
-				msg="experiment stopped"
+		if instruction=="stop":
+			try:
+				if myglobals.experiment.isAlive():
+					myglobals.experiment.stop()
+					myglobals.experiment=None
+					time.sleep(3)
+					return jsonify(status="experiment stopped")
+			except:
+				return jsonify(status="no experiment was running")
 
-		if instruction=='status' and (myglobals.experiment is not None):
+		if instruction=="status":
+			if myglobals.experiment is None:
+				return jsonify(status="no experiment running")
 			if myglobals.experiment.isAlive():
-				msg="experiment running"
-			else:
-				msg="no experiment running"
-		return jsonify(status=msg)
+				return jsonify(status="experiment running")
+

@@ -73,8 +73,8 @@ class sar_experiment(threading.Thread):
 	#folder_name: folder where the data from the current experiment is being stored
         if query:
             data_take=query['experiment']['last_data_take']
-            folder_name=query['experiment']['folder_name']
-            experiment_path=DATA_PATH+folder_name
+            folder_name=str(query['experiment']['folder_name'])
+            experiment_path=os.path.join(DATA_PATH, folder_name)
         else:
 	#if there was not, create a new folder, and append the current datetime to avoid conflicts with repeated 'collection_name' parameters
 	#update (or create if not exists) the 'current_experiment' collection
@@ -85,7 +85,7 @@ class sar_experiment(threading.Thread):
 
             os.mkdir(experiment_path)
             #PENDING: should log the folder creation
-            data_take = 1
+            data_take=1
 
             experiment={"folder_name":folder_name,
                         "last_data_take":data_take}
@@ -98,12 +98,12 @@ class sar_experiment(threading.Thread):
 	    #move to the starting position (only if it is different from 0)
             if self.xi!=0:
                 self.rail.move(self.xi, 'R')
-	        #the datasets will be named 'dset_{data_take}.hdf5'
-                file_name='dset_{}.hdf5'.format(data_take)
 
-            file_path=os.path.join(experiment_path, file_name)
-            f=h5py.File(file_path, 'w')
-            dset=f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype=np.complex64)
+            #the datasets will be named 'dset_{data_take}.hdf5'
+            file_name='dset_{}.hdf5'.format(data_take)
+            self.file_path=os.path.join(experiment_path, file_name)
+            self.f=h5py.File(self.file_path, 'w')
+            dset=self.f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype=np.complex64)
 
             data=self.vna.send_sweep()
             dset[0,:]=data
@@ -119,12 +119,12 @@ class sar_experiment(threading.Thread):
 	    if self.stop_flag:
 		break
 	    
-	    take_time=datetime.utcnow().replace(tzinf=FROM_ZONE)
+	    take_time=datetime.utcnow().replace(tzinfo=FROM_ZONE)
             take_time=take_time.astimezone(TO_ZONE)
             dset.attrs['take_index']=data_take
-            dset.attrs['xi']=1.0 * self.xi / METERS_TO_STEPS_FACTOR
-            dset.attrs['xf']=1.0 * self.xf / METERS_TO_STEPS_FACTOR
-            dset.attrs['dx']=1.0 * self.dx / METERS_TO_STEPS_FACTOR
+            dset.attrs['xi']=str(1.0 * self.xi / METERS_TO_STEPS_FACTOR)
+            dset.attrs['xf']=str(1.0 * self.xf / METERS_TO_STEPS_FACTOR)
+            dset.attrs['dx']=str(1.0 * self.dx / METERS_TO_STEPS_FACTOR)
             dset.attrs['npos']=self.npos
             dset.attrs['fi']=self.fi * 1E9
             dset.attrs['ff']=self.ff * 1E9
@@ -133,14 +133,20 @@ class sar_experiment(threading.Thread):
             dset.attrs['ifbw']=self.ifbw
             dset.attrs['beam_angle']=self.beam_angle
             dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
-	    f.close()
+	    self.f.close()
 	    #celery task to send the data to the main server
-            send_data.delay(file_name, file_path, self.collection_name)
+            send_data.delay(file_name, self.file_path, folder_name)
             data_take=data_take+1
 	    experiment_collection.update_one({"_id" : "current_experiment"},
 					     {"$inc": { "experiment.last_data_take": 1}})
 	    #move rail to zero position
-	    self.rail.zero()
+	    ack=self.rail.zero()
+
+	try:
+            experiment_collection.delete_one({'_id':'current_experiment'})
+	except:
+	    pass
+	
 	self.cleanup()
 
     def stop(self):
@@ -151,18 +157,30 @@ class sar_experiment(threading.Thread):
 	#and will delete the document that holds the 'current_experiment' info
 	try:
 	    self.rail.close()
-	    self.vna.close()
-	    f.close()
-	    os.remove(file_path)
-	    experiment_collection.delete_one({'_id':'current_experiment'})
 	except:
-	    pass
+	    print "rail was not connected"
+
+	try:
+    	    self.vna.close()
+	except:
+	    print "vna was not connected"
+
+	try:
+	    self.f.close()
+	except:
+	    print "no file was open"
+	
+	try:
+	    os.remove(self.file_path)
+	except:
+	    print "there was no file to remove"
+
 
     def reset_arduino(self):
+	GPIO.setwarnings(False)
 	GPIO.setmode(GPIO.BOARD)
 	GPIO.setup(8, GPIO.OUT)
 	GPIO.output(8, GPIO.LOW)
 	time.sleep(1)
 	GPIO.output(8, GPIO.HIGH)
 	time.sleep(3)
-	return

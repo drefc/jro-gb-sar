@@ -17,10 +17,10 @@ class JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, o)
 
 class ExperimentConfiguration(Resource):
-    def get(self, instruction, config_id = None):
+    def get(self, instruction, config_id = None):		
 		if instruction=='current_configuration':
 			current_configuration=configuration_collection.find_one({"_id":"current_configuration"})
-			return jsonify(current_configuration=str(current_configuration))
+			return jsonify(current_configuration=str(current_configuration))	
 
     def put(self, instruction):
 		if instruction=='set_configuration':

@@ -12,9 +12,11 @@ from common.common_functions import *
 from resources.check_instrument import CheckInstrument
 from resources.experiment_configuration import ExperimentConfiguration
 from resources.experiment_control import ExperimentControl
+from resources.foo import Foo
 
 app=Flask(__name__)
 app.config.from_object('config')
+app_route='/home/Documents/jro-gb-sar/sar-app'
 
 start_time=datetime.utcnow().replace(tzinfo=app.config['FROM_ZONE'])
 start_time=start_time.astimezone(app.config['TO_ZONE'])
@@ -23,7 +25,7 @@ log_file_name = '{}.log'.format(str(start_time).replace(' ','_'))
 logging.basicConfig(level=logging.DEBUG,
 		    format='%(asctime)s %(levelname)s %(message)s',
 		    datefmt='%a, %d %b %Y %H:%M:%S',
-		    filename=os.path.join(os.getcwd(),'log', log_file_name),
+		    filename=os.path.join(app_route,'log', log_file_name),
 		    filemode='w')
 
 logging.info('App started at {}'.format(str(start_time)))
@@ -33,6 +35,7 @@ api.add_resource(CheckInstrument, '/instrument/check/<string:instrument_name>')
 api.add_resource(ExperimentConfiguration, '/configuration/<string:instruction>',
 				 '/configuration/<string:instruction>/<config_id>')
 api.add_resource(ExperimentControl, '/experiment/<string:instruction>')
+api.add_resource(Foo, '/foo')
 
 if __name__ == '__main__':
 	#log the pid number for the UPS routine
