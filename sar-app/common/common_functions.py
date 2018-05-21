@@ -10,8 +10,8 @@ from common.db import *
 from static.constants import *
 
 def ping(host):
-    parameters = "-n 1" if system_name().lower()=="windows" else "-cq 1"
-    return system_call("ping " + parameters + " " + host) == 0
+    parameters="-n 1" if system_name().lower()=="windows" else "-cq 1"
+    return system_call("ping "+parameters+" "+host)==0
 
 def get_dictionary(list, name):
     return filter(lambda dictionary: dictionary['name'] == name, list)[0]
@@ -58,6 +58,6 @@ def check_instruments():
         print "vna is online"
 
     if not ping(HOST_LIST['rail']):
-        print "rail is not online, rebooting arduino"        
+        print "rail is not online, rebooting arduino"
     else:
         print "rail is online"

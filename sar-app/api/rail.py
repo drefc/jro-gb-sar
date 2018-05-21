@@ -13,25 +13,24 @@ RAIL_INSTRUCTIONS = {'move' : '0',
                      'stop' : '3',
                      'disconnect' : '4'}
 
-PORT = 12345
-BUFFER_LENGTH = 10000
-
-log_path = '../log/'
+PORT=12345
+BUFFER_LENGTH=10000
 
 class railClient():
-    def __init__(self, host = None, port = None):
+    def __init__(self, host=None, port=None):
         if host is None:
-            host = HOST_LIST['rail']
+            host=HOST_LIST['rail']
         if port is None:
-            port = PORT
-        self.host = host
-        self.port = port
+            port=PORT
+        self.host=host
+        self.port=port
 
     def connect(self):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
             self.socket.connect((self.host, self.port))
+	    print "rail: connected"
         except socket.error:
             self.socket.close()
 
@@ -39,7 +38,7 @@ class railClient():
         try:
             self.socket.send(data)
         except socket.error:
-            print "could not send instruction to the rail"
+            print "rail: could not send instruction to the rail"
 
     def receive(self):
         data=''
@@ -63,14 +62,16 @@ class railClient():
         time.sleep(2)
 
     def stop(self):
-        self.send(data = RAIL_INSTRUCTIONS['stop'] + '\n')
+        self.send(data=RAIL_INSTRUCTIONS['stop'] + '\n')
 
     def zero(self):
-        self.send(data = RAIL_INSTRUCTIONS['zero'] + '\n')
+        self.send(data=RAIL_INSTRUCTIONS['zero'] + '\n')
         ack=self.receive()
+	return ack
 
-    def end_connection(self):
-        self.send(data = RAIL_INSTRUCTIONS['disconnect'] + '\n')
+    def disconnect(self):
+        self.send(data=RAIL_INSTRUCTIONS['disconnect'] + '\n')
         
     def close(self):
+	self.disconnect()
         self.socket.close()
