@@ -1,52 +1,124 @@
 import numpy as np
 import matplotlib.pyplot as plt
+
 from matplotlib.dates import DayLocator, HourLocator, DateFormatter
 from scipy.fftpack import ifft, fft, ifft2, fftshift
 from scipy import interpolate
 from scipy.interpolate import griddata, interp1d
-import time
-import h5py
-import os.path as path
+
+import time, h5py, json, unicodedata, os
+
 from pymongo import MongoClient
-import json
 from ast import literal_eval
-import unicodedata
 from bson import json_util
 from datetime import datetime
-import os
 
 np.seterr(divide = 'ignore', invalid = 'ignore')
 date_format = "%Y-%m-%d"
 time_format = "%H:%M:%S"
 c0  =  299792458.0
+RAW_DATA_PATH='/home/andre/sar_raw_data'
+SLIDING_RESULTS_PATH='/home/andre/sar_processed_data/sliding'
 
 class jro_gbsar_processor():
 	def __init__(self, db_name, collection_name, algorithm):
-		self.db_name = db_name
-		self.collection_name = collection_name
-		self.algorithm = algorithm
-		self.db_client = MongoClient() #connect to MongoClient
+		self.db_name=db_name
+		self.collection_name=collection_name
+		self.algorithm=algorithm
+		self.db_client=MongoClient() #connect to MongoClient
+		db=self.db_client[self.db_name]
+		self.sar_collection = db[self.collection_name]
+
+	def insert_data_db(self):
+		for (dirpath, dirnames, filenames) in os.walk(os.path.join(RAW_DATA_PATH, self.collection_name)):
+			for element in filenames:
+				file_location=os.path.join(dirpath, element)
+				tmp=h5py.File(file_location, 'r+')
+				dset=tmp['sar_dataset']
+
+				#insert metadata to the collection (if does not exist)
+				if not self.sar_collection.find_one({'_id':'config'}):
+					post={'_id':'config',
+						  'start_position':dset.attrs['xi'],
+						  'stop_position':dset.attrs['xf'],
+						  'npos':int(dset.attrs['npos']),
+						  'delta':dset.attrs['dx'],
+						  'start_freq':float(dset.attrs['fi']),
+						  'stop_freq':float(dset.attrs['ff']),
+						  'nfre':int(dset.attrs['nfre']),
+						  'beam_angle':int(dset.attrs['beam_angle'])}
+					self.sar_collection.insert_one(post)
+		        #insert data to the collection
+				print "Inserting {} to {} db!".format(file_location, self.db_name)
+				post={'type':'data',
+					  'path':file_location,
+					  'datetime':dset.attrs['datetime'],
+					  'take_index':int(dset.attrs['take_index'])}
+				self.sar_collection.insert_one(post)
+				tmp.close()
 
 	def read_data(self):
-		db = self.db_client[self.db_name] #read 'sar_database'
-		self.sar_collection = db[self.collection_name] #read collection, ex: '1493324602284'
-		experiment_data = self.sar_collection.find()
-		self.ntakes = len(self.sar_collection.find().distinct('take_number'))
+		parameters=self.sar_collection.find_one({"_id":"config"})
+		self.ntakes=len(self.sar_collection.find({"type":"data"}).distinct('take_index'))
 
 		print "Found %d takes to process." %(self.ntakes)
 
-		parameters = experiment_data[0]
+		self.beam_angle=parameters['beam_angle']
+		self.xai=float(parameters['start_position'])
+		self.xaf=float(parameters['stop_position'])
+		self.dax=float(parameters['delta'])
+		self.nx=parameters['npos']
+		self.fre_min=parameters['start_freq']
+		self.fre_max=parameters['stop_freq']
+		self.nfre=parameters['nfre']
+		self.fre_c=(self.fre_min+self.fre_max) / 2.0
+		self.df=(self.fre_max - self.fre_min) / (self.nfre - 1.0)
 
-		self.beam_angle = parameters['beam_angle']
-		self.xai = float(parameters['start_position'])
-		self.xaf = float(parameters['stop_position'])
-		self.dax = float(parameters['delta_position'])
-		self.nx = int(parameters['nposition'])
-		self.fre_min = float(parameters['start_freq'])
-		self.fre_max = float(parameters['stop_freq'])
-		self.nfre = int(parameters['nfreq'])
-		self.fre_c = (self.fre_min+self.fre_max) / 2.0
-		self.df = (self.fre_max - self.fre_min) / (self.nfre - 1.0)
+	def plot_data_profiles(self):
+		results_folder=os.path.join("/home/andre/sar_processed_data/data_profiles/", self.collection_name)
+
+		if not os.path.exists(results_folder):
+			os.makedirs(results_folder)
+
+		starting_take=1
+
+		for take in range(starting_take, self.ntakes + 1):
+			print "Processing %d out of %d." %(take, self.ntakes)
+			#s21 = np.empty([self.nx, self.nfre], dtype = np.complex64)
+			#data = self.sar_collection.find({'take_number' : str(take)})
+			data=self.sar_collection.find_one({'take_index' : take})
+			data_path=data['path']
+			f=h5py.File(data_path, 'r')
+			s21=f['sar_dataset']
+			nprofiles=s21.shape[0]
+
+			#nr = 2 ** int(np.ceil(np.log2(self.nfre)))
+			nr=self.nfre
+			B  = self.df*nr
+			dr = c0 / (2*B)
+			distance = np.arange(nr) * dr
+
+			nc0 = int(self.nfre/2.0)
+			nc1 = int((self.nfre+1)/2.0)
+
+			s21_arr=np.zeros(s21.shape, dtype = complex)
+			s21_arr[:,0:nc1] = s21[:,nc0:self.nfre]
+			s21_arr[:,self.nfre-nc0:self.nfre] = s21[:,0:nc0]
+
+			reflectivity=np.absolute(ifft(s21_arr))
+			reflectivity=10*np.log10(reflectivity)
+			data_profiles_folder=os.path.join(results_folder, 'take_{}'.format(take))
+
+			if not os.path.exists(data_profiles_folder):
+				os.makedirs(data_profiles_folder)
+
+			for profile in range(nprofiles):
+				fig = plt.figure(1)
+				im = plt.plot(distance, reflectivity[profile])
+				plt.xlabel('Range (m)', fontsize = 14)
+				plt.ylabel('Relative Radar Reflectivity (dB)', fontsize = 14)
+				plt.savefig(os.path.join(data_profiles_folder, 'data_profile_{}.png'.format(profile)))
+				fig.clear()
 
 	def process_data(self, xi, xf, yi, yf, dx, dy, R0 = 0.0, ifft_fact = 8, win = False):
 		#grid extension: [(xi, xf), (yi, yf)]
@@ -58,13 +130,14 @@ class jro_gbsar_processor():
 		self.dx = dx
 		self.dy = dy
 
-		results_folder = "/home/andre/sar_processed_data/imaging/" + self.collection_name
+		#results_folder = "/home/andre/sar_processed_data/imaging/" + self.collection_name
+		results_folder=os.path.join("/home/andre/sar_processed_data/imaging/", self.collection_name)
 
 		if not os.path.exists(results_folder):
 			os.makedirs(results_folder)
 
-		processed_data_db = self.db_client['sar_processed_data']
-		sar_processed_data_collection = processed_data_db[self.collection_name]
+		processed_data_db=self.db_client['sar_processed_data']
+		sar_processed_data_collection=processed_data_db[self.collection_name]
 
 		if self.algorithm == "range_migration":
 			range_res = 2 ** 11
@@ -159,58 +232,25 @@ class jro_gbsar_processor():
 
 			starting_take = 1
 
-			'''
-			if sar_processed_data_collection.find().count() is not 0:
-				parameters = sar_processed_data_collection.find_one({'type' : 'parameters'})
-
-				if (self.xi == parameters['xi']) and (self.xf == parameters['xf']) and (self.yi == parameters['yi']) and (self.yf == parameters['yf']):
-					file_temp = h5py.File(parameters['Rnk_folder'], 'r')
-					dset = file_temp["Rnk"]
-					Rnk = dset[...]
-					file_temp.close()
-					starting_take = len(self.sar_collection.find().distinct('take'))
-				else:
-					sar_processed_data_collection.delete_many({})
-
-			if sar_processed_data_collection.find().count() is 0:
-				Rnk = self.calculate_Rnk(xn, yn ,xa) #vector of distance from the antenna positions to the grid
-				Rnk_folder = results_folder + "/Rnk.hdf5"
-				f = h5py.File(Rnk_folder, 'w')
-				dset = f.create_dataset("Rnk", (Rnk.shape), dtype = np.float32)
-				dset[...] = Rnk
-				f.close()
-				post = {"type": "parameters",
-						"xi": self.xi,
-	                    "xf": self.xf,
-	            	    "yi": self.yi,
-						"yf": self.yf,
-						"dx": self.dx,
-						"dy": self.dy,
-						"ifft_fact": ifft_fact,
-						"window": win,
-						"Rnk_folder": Rnk_folder}
-
-				sar_processed_data_collection.insert(post)
-				post = None
-			'''
 			for take in range(starting_take, self.ntakes + 1):
 				print "Processing %d out of %d." %(take, self.ntakes)
-				s21 = np.empty([self.nx, self.nfre], dtype = np.complex64)
-				data = self.sar_collection.find({'take_number' : str(take)})
+				#s21 = np.empty([self.nx, self.nfre], dtype = np.complex64)
+				#data = self.sar_collection.find({'take_number' : str(take)})
+				data=self.sar_collection.find_one({'take_index' : take})
+				data_path=data['path']
+				f=h5py.File(data_path, 'r')
+				s21=f['sar_dataset']
 
-				#if data.count() < self.nx:
-				#	continue
-
-				for position in range(self.nx):
-					data_real = literal_eval(data[position]['data']['data_real'])
-					data_imag = literal_eval(data[position]['data']['data_imag'])
-					s21[position,:] = np.array(data_real)[0] + 1j * np.array(data_imag)[0]
+				#for position in range(self.nx):
+				#	data_real = literal_eval(data[position]['data']['data_real'])
+				#	data_imag = literal_eval(data[position]['data']['data_imag'])
+				#	s21[position,:] = np.array(data_real)[0] + 1j * np.array(data_imag)[0]
 
 				if win:
 					s21 = s21 * np.hanning(s21.shape[1])
 					s21 = s21 * np.hanning(s21.shape[0])[:,np.newaxis]
 
-				dt = datetime.strptime(data[self.nx-1]['datetime'], "%Y-%m-%d %H:%M:%S.%f")
+				dt = datetime.strptime(data['datetime'], "%d-%m-%y %H:%M:%S")
 				date = str(dt.date())
 				time = str(dt.time().strftime("%H:%M:%S"))
 
@@ -252,7 +292,7 @@ class jro_gbsar_processor():
 		nc1 = int((self.nfre+1)/2.0) #first chunk of the frequency: fc,ff
 		s21_arr[:,0:nc1] = s21[:, nc0:self.nfre] #invert array order
 		s21_arr[:,self.nr - nc0: self.nr] = s21[:, 0:nc0]
-		Fn0 = self.nr * ifft(s21_arr, n = self.nr)
+		Fn0 = self.nr * ifft(s21_arr, n = self.nr)		
 
 		for k in range(0,self.nx):
 			Fn = np.interp(Rnk[k,:] - R0, self.rn, np.real(Fn0[k,:])) + 1j * np.interp(Rnk[k,:] - R0, self.rn, np.imag(Fn0[k,:]))
@@ -303,10 +343,11 @@ class jro_gbsar_processor():
 		fig = plt.figure(1)
 
 		if take == 1:
-			self.vmin = np.amin(I) + 28
+			self.vmin = np.amin(I)+30
 			self.vmax = np.amax(I)
 
-			aux = int((self.yf - (self.xf * np.tan(48.0 * np.pi /180.0))) * I.shape[0] / (self.yf - self.yi))
+			'''
+			aux = int((self.yf - (self.xf * np.tan(self.beam_angle * np.pi /180.0))) * I.shape[0] / (self.yf - self.yi))
 			mask = np.zeros(I.shape)
 
 			count = 0
@@ -318,9 +359,10 @@ class jro_gbsar_processor():
 					mask[k, self.nposx - count -1:self.nposx-1] = 1
 					count = count + 1
 			self.masked_values = np.ma.masked_where(mask == 0, mask)
+			'''
 
 		im = plt.imshow(I, cmap = 'jet', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin = self.vmin, vmax = self.vmax)
-		plt.imshow(self.masked_values, cmap = 'Greys', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin = self.vmin, vmax = self.vmax, interpolation = 'none')
+		#plt.imshow(self.masked_values, cmap = 'Greys', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin = self.vmin, vmax = self.vmax, interpolation = 'none')
 		cbar = plt.colorbar(im, orientation = 'vertical')
 		plt.ylabel('Range (m)', fontsize = 14)
 		plt.xlabel('Cross-range (m)', fontsize = 14)
@@ -368,13 +410,14 @@ class jro_gbsar_processor():
 		plt.show()
 		fig.clear()
 
+
 class jro_sliding_processor():
 	def __init__(self, db_name, collection_name):
-		self.db_name = db_name
+		self.db_name=db_name
 		self.collection_name = collection_name
 		self.db_client = MongoClient() #connect to MongoClient
 
-		self.results_folder = "/home/andre/sar_processed_data/sliding/" + self.collection_name
+		self.results_folder=os.path.join(SLIDING_RESULTS_PATH, self.collection_name)
 
 		if not os.path.exists(self.results_folder):
 			os.makedirs(self.results_folder)
@@ -391,10 +434,8 @@ class jro_sliding_processor():
 		self.xf = float(parameters['xf'])
 		self.yi = float(parameters['yi'])
 		self.yf = float(parameters['yf'])
-		self.fre_min = 15500000000.0
-		#self.fre_min = float(parameters['fi'])
-		self.fre_max = 15600000000.0
-		#self.fre_max = float(parameters['ff'])
+		self.fre_min = float(parameters['fi'])
+		self.fre_max = float(parameters['ff'])
 		self.fre_c = (self.fre_min+self.fre_max) / 2.0
 		self.lambda_d = 1000 * (c0/(self.fre_c * 4 * np.pi))
 
@@ -447,6 +488,7 @@ class jro_sliding_processor():
 		dset = file_temp.create_dataset("Mask", (mask.shape), dtype = np.uint8)
 		dset[...] = mask
 		file_temp.close()
+		width=len(str(self.ntakes))
 
 		for take in range(1, self.ntakes):
 			print "Processing take %d and %d." %(take, take + 1)
@@ -486,7 +528,7 @@ class jro_sliding_processor():
 					cbar = plt.colorbar(im, orientation = 'vertical', format='%.2f')
 				im = plt.imshow(self.lambda_d * phase, cmap = 'jet', aspect = 'auto',
 								extent = [self.xi,self.xf,self.yi,self.yf], vmin = vmin, vmax = vmax)
-				plt.savefig(self.results_folder + "/take%d_%d.png" %(take, (take+1)))
+				plt.savefig(os.path.join(self.results_folder, "take_{}_{}.png".format("{0:0{width}}".format(take, width=width), "{0:0{width}}".format(take+1, width=width))))
 
 		fig.clear()
 		fig = plt.figure(figsize = (10.0, 6.0))
@@ -825,9 +867,10 @@ class jro_sliding_processor():
 		print "Done!"
 
 	def calculate_integrated_sliding2(self, integration_factor, output_images):
-		file_temp = h5py.File(self.results_folder + "/mask.hdf5", 'r')
-		dset = file_temp["Mask"]
-		mask = dset[...]
+		mask_path=os.path.join(self.results_folder, 'mask.hdf5')
+		file_temp=h5py.File(mask_path, 'r')
+		dset=file_temp["Mask"]
+		mask=dset[...]
 		file_temp.close()
 
 		new_clean_data_list = []
@@ -841,7 +884,8 @@ class jro_sliding_processor():
 		new_clean_data_list = new_clean_data_list[:n]
 		groups_list = [new_clean_data_list[i: i + integration_factor] for i in range(0, len(new_clean_data_list), integration_factor)]
 
-		integrated_sliding2_results_folder = self.results_folder + "/integrated_sliding2_factor_%d" %(integration_factor)
+		integrated_sliding2_results_folder=os.path.join(self.results_folder, "integrated_sliding2_factor_{}".format(integration_factor))
+
 		if not os.path.exists(integrated_sliding2_results_folder):
 			os.makedirs(integrated_sliding2_results_folder)
 
@@ -851,6 +895,7 @@ class jro_sliding_processor():
 		phase_mean_sum = np.zeros(integrated_sliding2_len)
 		phase_std_dev = np.zeros(integrated_sliding2_len)
 		date_values = []
+		width=len(str(len((groups_list))))
 
 		vmax = np.pi * self.lambda_d
 		vmin = -1 * vmax
@@ -899,7 +944,7 @@ class jro_sliding_processor():
 				plt.ylabel('Range (m)', fontsize = 12)
 				plt.xlabel('Cross-range (m)', fontsize = 12)
 
-				if enum == 0:
+				if enum==0:
 					im = plt.imshow(self.lambda_d * phase, cmap = 'jet', aspect = 'auto',
 									extent = [self.xi,self.xf,self.yi,self.yf], vmin = vmin, vmax = vmax)
 					cbar = plt.colorbar(im, orientation = 'vertical', format='%.2f')
@@ -915,7 +960,7 @@ class jro_sliding_processor():
 					for k in range(nposy):
 						if k >= (aux + 1):
 							mask_aux[k, 0:count] = 1
-							mask_aux[k, nposx - count -1:nposx-1] = 1
+							mask_aux[k, nposx-count-1:nposx-1] = 1
 							count = count + 1
 					masked_values = np.ma.masked_where(mask_aux == 0, mask_aux)
 					plt.imshow(masked_values, cmap = 'binary', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf])
@@ -926,7 +971,7 @@ class jro_sliding_processor():
 					plt.imshow(masked_values, cmap = 'binary', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf])
 					plt.imshow(masked_plot, cmap = 'binary', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf])
 
-				plt.savefig(integrated_sliding2_results_folder + "/groups_%d_%d.png" %(enum, enum+1))
+				plt.savefig(os.path.join(integrated_sliding2_results_folder, "groups_{}_{}.png".format("{0:0{width}}".format(enum, width=width), "{0:0{width}}".format(enum+1, width=width))))
 
 		fig = plt.figure(1)
 		fig.clear()
@@ -982,32 +1027,32 @@ class jro_sliding_processor():
 		print "Done!"
 
 if __name__ == "__main__":
-	xi =  -250.0
-	xf =  250.0
-	yi =  50.0
-	yf =  550.0
+	xi =  -12.5
+	xf =  12.5
+	yi =  0.0
+	yf =  25.0
 
 	R0 	=  0.0
-	dx  =  1.0
-	dy  =  1.0
+	dx  =  0.2
+	dy  =  0.2
 
-	collection_name = 'jro-labtest-2017-07-2722:40:48.212442'
-	db_name = 'sar_processed_data'
-	db_name = 'sar_database'
+	collection_name = 'data-luis'
+	#db_name = 'sar_processed_data'
+	db_name = 'sar-raw-data'
 	algorithm = 'terrain_mapping'
 
-	dp = jro_gbsar_processor(db_name = db_name, collection_name = collection_name, algorithm = algorithm)
+	dp = jro_gbsar_processor(db_name=db_name, collection_name = collection_name, algorithm = algorithm)
+	dp.insert_data_db()
 	dp.read_data()
-	dp.process_data(xi = xi, xf = xf, yi = yi, yf = yf, dx = dx, dy = dy, ifft_fact = 8, win = True)
-	'''
+	dp.process_data(xi = xi, xf = xf, yi = yi, yf = yf, dx = dx, dy = dy, ifft_fact = 8, win = False)
+	#dp.plot_data_profiles()
 
-	collection_name = 'jro-labtest-2017-07-2722:40:48.212442'
-	db_name = 'sar_processed_data'
+	#collection_name = 'jro-labtest-2017-07-2722:40:48.212442'
+	#db_name = 'sar_processed_data'
 
-	x = jro_sliding_processor(db_name = db_name, collection_name = collection_name)
-	x.read_data()
-	x.calculate_sliding(0.85, output_images = False)
-	x.clean_data_report(0.7)
-	x.calculate_integrated_sliding2(integration_factor = 4, output_images = False)
+	#x = jro_sliding_processor(db_name = db_name, collection_name = collection_name)
+	#x.read_data()
+	#x.calculate_sliding(0.6, output_images = False)
+	#x.clean_data_report(1.8)
+	#x.calculate_integrated_sliding2(integration_factor = 2, output_images = True)
 	#x.calculate_integrated_sliding2(integration_factor = 1)
-	'''
