@@ -7,6 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
 from MyGlobals import myglobals
 from common.db import *
+from static.constants import *
 
 def ping(host):
     parameters = "-n 1" if system_name().lower()=="windows" else "-cq 1"
@@ -49,3 +50,14 @@ def check_existing_experiment():
             if status=='running':
                 myglobals.experiment=sar_experiment()
                 myglobals.experiment.start()
+
+def check_instruments():
+    if not ping(HOST_LIST['vna']):
+        print "vna is not online"
+    else:
+        print "vna is online"
+
+    if not ping(HOST_LIST['rail']):
+        print "rail is not online, rebooting arduino"        
+    else:
+        print "rail is online"
