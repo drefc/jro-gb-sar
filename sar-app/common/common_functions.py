@@ -1,7 +1,7 @@
 from os import system as system_call
 from platform import system as system_name
 
-import netifaces, db, os, sys
+import netifaces, db, os, sys, time
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
@@ -44,20 +44,37 @@ def check_existing_experiment():
     query=configuration_collection.find_one({"_id":"current_configuration"})
 
     if query:
+        '''
         query=experiment_collection.find_one({"_id" : "current_experiment"})
         if query:
             status=query['status']
             if status=='running':
-                myglobals.experiment=sar_experiment()
-                myglobals.experiment.start()
+        '''
+        myglobals.experiment=sar_experiment()
+        myglobals.experiment.start()
+    else:
+        myglobals.status="experiment not running."
 
 def check_instruments():
     if not ping(HOST_LIST['vna']):
         print "vna is not online"
+        return -1
     else:
         print "vna is online"
 
     if not ping(HOST_LIST['rail']):
         print "rail is not online, rebooting arduino"
+        reset_arduino()
+        return -1
     else:
         print "rail is online"
+     return 1
+
+def reset_arduino():
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(18, GPIO.OUT)
+    GPIO.output(18, GPIO.LOW)
+    time.sleep(1)
+    GPIO.output(18, GPIO.HIGH)
+    time.sleep(3)

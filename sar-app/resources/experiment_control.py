@@ -17,7 +17,7 @@ class ExperimentControl(Resource):
 			myglobals.experiment=sar_experiment()
 			myglobals.experiment.start()
 			time.sleep(5)
-			return jsonify(status="experiment started")
+			return jsonify(status=myglobals.status)
 
 		if instruction=="stop":
 			try:
@@ -25,13 +25,24 @@ class ExperimentControl(Resource):
 					myglobals.experiment.stop()
 					myglobals.experiment=None
 					time.sleep(3)
-					return jsonify(status="experiment stopped")
+					return jsonify(status=myglobals.status)
 			except:
-				return jsonify(status="no experiment was running")
+				if myglobals.status is None:
+					return jsonify(status=myglobals.status)
+
+		if instruction=="drop_current_experiment":
+			if myglobals.experiment is None:
+				try:
+					experiment_collection.find_one_and_delete({"_id":"current_experiment"})
+					return jsonify(message="current experiment collection dropped.")
+				except:
+					return jsonify(message="current experiment collection empty.")
 
 		if instruction=="status":
+			'''
 			if myglobals.experiment is None:
 				return jsonify(status="no experiment running")
 			if myglobals.experiment.isAlive():
 				return jsonify(status="experiment running")
-
+			'''
+			return jsonify(status=myglobals.status)

@@ -38,12 +38,15 @@ api.add_resource(ExperimentControl, '/experiment/<string:instruction>')
 api.add_resource(Foo, '/foo')
 
 if __name__ == '__main__':
-	#log the pid number for the UPS routine
-	f=open('/tmp/app.pid', 'w')
-	f.write(str(os.getpid()))
-	f.close()
-	
-	#check if there was an experiment
+	while True:
+		if check_instruments>0:
+			break
+		else:
+			print "Something is wrong with the rail or vna, retrying in 5 seconds. \
+				   If the problem persists, please check the log \
+				   file located in the folder /var/log/app."
+			time.sleep(5)
+
 	check_existing_experiment()
 	host=run_vpn(check_vpn)
 

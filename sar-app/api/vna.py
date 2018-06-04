@@ -49,29 +49,19 @@ class vnaClient():
 
         try:
             self.s.connect((self.host, self.port))
+            print "VNA: connected"
+            return 1
         except socket.error:
-                self.s.close()
-                self.s = None
-
-        if self.s is None:
-            print "vna: could not connect to VNA"
-        else:
-            print "vna: connected"
+            self.s.close()
+            print "VNA: not connected."
+            return -1
 
     def send(self, data):
-        self.error=0
-
         try:
             self.s.send(data)
-        except socket.error:
-            self.error=-1
-	
-	'''
-        if self.error<0:
-            print "could not send instruction"
-        else:
-            print 'Data sent: %s\n' % data
-	'''
+            print "VNA: instruction sent."
+        except:
+            print "VNA: instruction not sent."
 
     def recv(self, buffer_len=None):
         if buffer_len is None:
@@ -79,14 +69,12 @@ class vnaClient():
             buffer_len=BUFFER_LENGTH
         else:
             recv_flag=True
-	    buffer_len=buffer_len
+            buffer_len=buffer_len
 
         data=""
 
         while True:
-            data=data+self.s.recv(1)	    
-	    #print "data: {}".format(data)
-	    #print "len: {}".format(len(data))
+            data=data+self.s.recv(1)
             if recv_flag and len(data)==buffer_len:
                 break
             elif not recv_flag and data[len(data)-1]=='\n':
@@ -112,12 +100,12 @@ class vnaClient():
 
     def send_number_points(self, points = None):
         if points is None:
-            points = 1601
+            points = 1001
         else:
             if 2 <= points <= 4001:
-                points = points
+                points=points
             else:
-                print "number of points out of range (2-4001)"
+                print "VNA: number of points out of range."
                 return
         self.points = points
         self.send(data = SCPI_NUMBER_OF_POINTS %self.points)
@@ -129,10 +117,9 @@ class vnaClient():
             if 12.4 <= freq_start <= 18.0:
                 freq_start = freq_start
             else:
-                print "frequency out of range (12.4-18.0 GHz)"
+                print "VNA: frequency not valid."
                 return
         self.freq_start = freq_start
-        #print freq_start
         self.send(data = SCPI_FREQ_START %self.freq_start)
 
     def send_freq_stop(self, freq_stop = None):
@@ -142,10 +129,9 @@ class vnaClient():
             if 12.4 <= freq_stop <= 18.0:
                 freq_stop = freq_stop
             else:
-                print "frequency out of range (12.4-18.0 GHz)"
+                print "VNA: frequency not valid."
                 return
         self.freq_stop = freq_stop
-        #print freq_stop
         self.send(data = SCPI_FREQ_STOP %self.freq_stop)
 
     def send_power(self, power = None):
@@ -155,7 +141,7 @@ class vnaClient():
             if power in ['HIGH', 'LOW']:
                 power = power
             else:
-                print "invalid power value (HIGH or LOW)"
+                print "VNA: power not valid."
                 return
         self.power = power
         self.send(data = SCPI_POWER %self.power)
@@ -167,15 +153,12 @@ class vnaClient():
             if instrument in INSTUMENT:
                 instrument = INSTRUMENT[instrument]
             else:
-                print "instrument not valid"
+                print "VNA: instrument not valid"
                 return
         self.instrument=instrument
         self.send(data=SCPI_SELECT_INSTRUMENT %self.instrument)
 
     def send_cfg(self):
-        #DISPLAY CONFIGURATION
-        #Two traces on screen for the s21 parameter:
-        #First for the magnitude (dB) and the other for the phase (rad)
         self.send(data=SCPI_TRACE_NUMBER %2)
         self.send(data=SCPI_DISPLAY %("DUAL"))
         self.send(data=SCPI_TRACE_DOMAIN %1)
@@ -187,8 +170,6 @@ class vnaClient():
         self.send(data=SCPI_SWEEP_TYPE)
         self.send(data=SCPI_INIT_OFF)
         time.sleep(5)
-        return
-        #print "vna succesfuly configured!"
 
     def send_sweep(self):
         #Configure the data format as REAL,64
@@ -196,38 +177,30 @@ class vnaClient():
         #Do a single sweep
         self.send(data=SCPI_INIT_IMM)
         #Wait for the insrument to be ready to send the measured data
-	time.sleep(1)
+        time.sleep(1)
 
         while True:
             self.send(data=SCPI_STATUS_OPERATION)
-	    data=self.recv()
-	    #print data
+            data=self.recv()
+
 	    if data=="256\n":
 	        break
-	    #time.sleep(0.5)
-        
+
         self.send(data=SCPI_DATA_FORMAT)
         self.send(data=SCPI_TRANSFER_DATA)
-	#time.sleep(2)
-        while True:
-            #x = self.recv(1)
-            #print x
-	    if self.recv(1)=="#":
-            #if x == "#":
-                break
-        BYTE_COUNT=self.recv(1)
-        print BYTE_COUNT
-        DATA_BYTE=self.recv(int(BYTE_COUNT))
-        print int(DATA_BYTE)
-        DATA=self.recv(int(DATA_BYTE))
-        print len(DATA)
 
+        while True:
+            if self.recv(1)=="#":
+                break
+
+        byte_count=self.recv(1)
+        data_byte=self.recv(int(byte_count))
+        data=self.recv(int(data_byte))
         data_array=np.fromstring(DATA, dtype=np.complex64)
-	time.sleep(2)
-        #print data_array.shape
-        print "vna: data received!"
+        time.sleep(2)
+        print "VNA: data received!"
         return data_array
 
     def close(self):
         self.s.close()
-        print "vna: connection closed"
+        print "VNA: disconnected."

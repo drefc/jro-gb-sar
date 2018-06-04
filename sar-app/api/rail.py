@@ -30,25 +30,44 @@ class railClient():
 
         try:
             self.socket.connect((self.host, self.port))
-	    print "rail: connected"
+            print "RAIL: rail connected"
+            return 1
+
         except socket.error:
             self.socket.close()
+            print "RAIL: rail not connected."
+            return -1
 
     def send(self, data):
         try:
             self.socket.send(data)
         except socket.error:
-            print "rail: could not send instruction to the rail"
+            print "RAIL: instruction not sent"
 
-    def receive(self):
+    def receive(self, timeout=None):
         data=''
         buff=''
 
+        if timeout:
+            start=time.time()
+            #self.socket.setblocking(1)
+
         while True:
-            buff=self.socket.recv(1)
-            if buff=='\n':
-                break
-            data=data+buff
+            try:
+                buff=self.socket.recv(1)
+                data=data+buff
+                if data=='OK\n':
+                    break
+            except:
+                if timeout:
+                    end=time.time()
+                    if (end-start)>=timeout:
+                        data=-1
+                        #self.socket.setblocking(0)
+                        break
+                else:
+                    pass
+        print "RAIL: ack received."
         return data
 
     def move(self, steps, direction=None):
@@ -58,20 +77,24 @@ class railClient():
             direction=direction
 
         self.send(data=RAIL_INSTRUCTIONS['move']+str(steps)+str(direction)+'\n')
-        ack=self.receive()
-        time.sleep(2)
+        ack=self.receive(timeout=15)
+        #ack=self.receive()
+        #time.sleep(2)
+        return ack
 
     def stop(self):
         self.send(data=RAIL_INSTRUCTIONS['stop'] + '\n')
 
     def zero(self):
         self.send(data=RAIL_INSTRUCTIONS['zero'] + '\n')
-        ack=self.receive()
-	return ack
+        ack=self.receive(timeout=90)
+        time.sleep(2)
+        return ack
 
     def disconnect(self):
         self.send(data=RAIL_INSTRUCTIONS['disconnect'] + '\n')
-        
+
     def close(self):
-	self.disconnect()
+        self.disconnect()
         self.socket.close()
+        print "RAIL: disconnected."

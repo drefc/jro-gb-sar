@@ -52,13 +52,14 @@ void setup()
   pinMode(vna_power, OUTPUT);
   pinMode(pa_power, OUTPUT);
   pinMode(motor_power, OUTPUT);
-  pinMode(switch_left, INPUT);
-  pinMode(switch_right, INPUT);
+  pinMode(switch_left, INPUT_PULLUP);
+  pinMode(switch_right, INPUT_PULLUP);
 
   digitalWrite(motor_enable, LOW);
   digitalWrite(vna_power, LOW);
   digitalWrite(pa_power, LOW);
   digitalWrite(motor_power, LOW);
+  //digitalWrite(switch_right, HIGH);
 
   Ethernet.begin(mac, ip, gateway, subnet);  
   server.begin();
@@ -66,7 +67,7 @@ void setup()
 
 void loop()
 {
-  EthernetClient client = server.available();
+  EthernetClient client=server.available();
   
   if (client)  
     listen_instruction(client);  
@@ -81,46 +82,40 @@ void listen_instruction(EthernetClient client)
       instruction="";
       char header="";      
       read_client(client);
-      header = instruction.charAt(0);      
-
-      //move motor
-      if (header == '0')
+      header = instruction.charAt(0);
+      
+      if (header=='0')
       {        
-        char dir = (instruction.substring(instruction.length() - 1, instruction.length() - 2)).charAt(0);
-        steps_global = instruction.substring(1, instruction.length() - 2).toInt();        
-        calibration_flag = false;
+        char dir=instruction.substring(instruction.length()-1, instruction.length()-2).charAt(0);
+        steps_global=instruction.substring(1, instruction.length()-2).toInt();
+        timer_flag=false;
 
-        if (dir == 'L')
-        {          
-          //move_motor(steps, LEFT, client);
-          move_motor(LEFT, client);          
-          server.println("OK\n");
-        }
-
-        if (dir == 'R')
-        {
-          //move_motor(steps, RIGHT, client);
+        if (dir=='L')        
+          move_motor(LEFT, client);
+        else if (dir=='R')        
           move_motor(RIGHT, client);
-          server.println("OK\n");
-        }
+          
+        //server.print((String) steps_moved);
+        //server.print(steps_global);
+        server.print("OK\n");
       }
-
-      //go to zero position on the rail
-      if (header == '2')
+      
+      if (header=='2')
       { 
         calibration_flag=true;
         zero_position(client);
-        server.println("OK\n");
+        server.print("OK\n");
         calibration_flag=false;
       }
 
       //end connection
-      if (header == '4')
+      if (header=='4')
       {
         //server.println("Bye\n");
         break;
       }
 
+      /*
       if (header == '5')
       {
         char state = (instruction.substring(instruction.length() - 1, instruction.length() - 2)).charAt(0);
@@ -153,22 +148,24 @@ void listen_instruction(EthernetClient client)
           digitalWrite(pa_power, HIGH);
           server.println("PA ON\n");
         }
-      }      
+      }
+      */      
     }
   }  
 }
 
 void move_motor(bool dir, EthernetClient client)
 {
-  instruction = "";
-  steps_moved = 0;  
+  instruction="";
+  steps_moved=0;  
   digitalWrite(motor_direction, dir);
   timer_on();
 
   while (1)
   {  
-    if (timer_flag)
-    { 
+    if (timer_flag)    
+    {
+      timer_off();
       break;
     }
   }
@@ -178,6 +175,7 @@ void calibrate(EthernetClient client)
 {
   bool stop_flag = LOW;
   char header = '\0';
+  int safety=0;
   instruction = "";
   timer_on();
   digitalWrite(motor_direction, RIGHT);
@@ -193,8 +191,8 @@ void calibrate(EthernetClient client)
       stop_flag = HIGH;
       break;
     }
-
-    if (digitalRead(switch_right) == HIGH)
+    
+    if (digitalRead(switch_right) == LOW)
     {
       timer_off();
       digitalWrite(motor_direction, LEFT);
@@ -202,7 +200,7 @@ void calibrate(EthernetClient client)
 
       while (1)
       {
-        if (digitalRead(switch_right) == LOW)
+        if (digitalRead(switch_right) == HIGH)
           break;
       }
 
@@ -252,13 +250,48 @@ void calibrate(EthernetClient client)
 
 void zero_position(EthernetClient client)
 {
+  int safety=0;
   instruction="";
   timer_on();
   digitalWrite(motor_direction, LEFT);
-  
+    
   while (1)
-  { 
-    /*    
+  {     
+    if (digitalRead(switch_right) == LOW)
+    {
+      while (1)
+      {
+        if (digitalRead(switch_right) == LOW)
+          safety++;
+        if ((safety>=100) && (digitalRead(switch_right) == HIGH))
+        {
+          safety=0;
+          break;
+        }
+      }
+      timer_off();      
+      digitalWrite(motor_direction, RIGHT);
+      timer_on();
+  
+      if (digitalRead(switch_right) == HIGH)
+      {
+        while (1)
+        {
+          if (digitalRead(switch_right) == HIGH)
+            safety++;
+          if (safety>=100)
+          {
+            safety=0;
+            break;
+          }
+        }
+        timer_off();      
+        break;
+      }
+    }
+
+    
+    /*  
     read_client(client);
     char header = instruction.charAt(0);    
     
@@ -268,8 +301,8 @@ void zero_position(EthernetClient client)
       break;
     }
     */
-        
-    if (digitalRead(switch_right) == HIGH)
+    /*            
+    if (digitalRead(switch_right) == LOW)
     {
       timer_off();      
       digitalWrite(motor_direction, RIGHT);
@@ -277,12 +310,13 @@ void zero_position(EthernetClient client)
 
       while (1)
       {
-        if (digitalRead(switch_right) == LOW)
+        if (digitalRead(switch_right) == HIGH)
           break;
       }
       timer_off();      
       break;
-    }    
+    } 
+    */ 
   }
 }
 
@@ -311,6 +345,7 @@ void timer_on()
   TCCR1B |= (1 << WGM12 | 1 << WGM13);
   OCR1A = (1 - DUTY_CYCLE) * steps_freq;
   ICR1 = steps_freq;
+ 
   TCCR1B |= (1 << CS10);
   
   if (!calibration_flag)
@@ -322,21 +357,16 @@ void timer_on()
 
 void timer_off()
 {
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TIMSK1 &= (0 << OCIE1A);  
+  TCCR1A=0;
+  TCCR1B=0;
+  TIMSK1&=(0 << OCIE1A);  
   noInterrupts();  
 }
 
 ISR(TIMER1_COMPA_vect)
 { 
-  if (steps_moved == steps_global)
-  {
-    timer_flag = true;
-    timer_off();    
-  }  
-  else
-  {
-    steps_moved++;
-  }
+  if (steps_moved==steps_global)
+    timer_flag=true;
+  else  
+    steps_moved++;  
 }
