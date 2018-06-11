@@ -27,6 +27,12 @@ class sar_experiment(threading.Thread):
         self.rail=rail.railClient()
     	self.vna=vna.vnaClient()
         atexit.register(self.cleanup)
+
+        try:
+            self.mode=current_configuration['mode']
+        except:
+            self.mode=None
+            pass
         #cleanup before program termination
         threading.Thread.__init__(self)
 
@@ -42,7 +48,11 @@ class sar_experiment(threading.Thread):
         self.nfre=current_configuration['nfre']
         self.ptx=current_configuration['ptx']
         self.ifbw=current_configuration['ifbw']
-        self.beam_angle=current_configuration['beam_angle']
+
+        if current_configuration['beam_angle']:
+            self.beam_angle=current_configuration['beam_angle']
+        else:
+            self.beam_angle=180.0
 
     	#calculate the 'dx' and 'npos' parameters
     	#recalculate 'xf'
@@ -110,55 +120,108 @@ class sar_experiment(threading.Thread):
                                                       upsert=True)
         #the experiment loop begins
         #this will loop infinitely until an 'stop' is requested, or there is a power failure and the system needs to go down
-        while True:
-            #move to the starting position (only if it is different from 0)
+
+        if self.mode=="continuous-mode":
+            self.rail.close()
             myglobals.status="experiment running."
-            if self.xi!=0:
-                if self.rail.move(self.xi, 'R')<0:
-                    myglobals.status="ERROR: check rail."
+
+            while True:
+                self.rail=rail.rail_continuous()
+                self.rail.connect()
+                self.rail.zero()
+                #the datasets will be named 'dset_{data_take}.hdf5'
+                t=[]
+                d=[]
+                self.rail.start()
+
+                while True:
+                    d.append(self.vna.send_sweep())
+                    t.append(time.time())
+            	    if self.rail.get_status():
+            		    break
+                    if self.stop_flag:
+                        break
+
+                if self.stop_flag:
                     break
 
-            #the datasets will be named 'dset_{data_take}.hdf5'
-            file_name='dset_{}.hdf5'.format(data_take)
-            self.file_path=os.path.join(experiment_path, file_name)
-            self.f=h5py.File(self.file_path, 'w')
-            dset=self.f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype=np.complex64)
+                data=np.array(d)
+                timestamp=np.array(t)
 
-            dset[0,:]=self.vna.send_sweep()
+                file_name='dset_{}.hdf5'.format(data_take)
+                self.file_path=os.path.join(experiment_path, file_name)
+                self.f=h5py.File(self.file_path, 'w')
+                dset=self.f.create_dataset('sar_dataset', data.shape, dtype=np.complex64)
 
-            for j in range(1, self.npos):
-                if self.stop_flag:
-		            break
+        	    take_time=datetime.utcnow().replace(tzinfo=FROM_ZONE).astimezone(TO_ZONE)
+                dset.attrs['take_index']=data_take
+                dset.attrs['xi']=str(1.0 * self.xi / METERS_TO_STEPS_FACTOR)
+                dset.attrs['xf']=str(1.0 * self.get_aperture_length / METERS_TO_STEPS_FACTOR)
+                dset.attrs['npos']=data.shape[1]
+                dset.attrs['fi']=self.fi * 1E9
+                dset.attrs['ff']=self.ff * 1E9
+                dset.attrs['nfre']=self.nfre
+                dset.attrs['ptx']=self.ptx
+                dset.attrs['ifbw']=self.ifbw
+                dset.attrs['beam_angle']=self.beam_angle
+                dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
+        	    self.f.close()
+        	    #celery task to send the data to the main server
+                send_data.delay(file_name, self.file_path, folder_name)
+                data_take=data_take+1
+        	    experiment_collection.update_one({"_id" : "current_experiment"},
+        					     {"$inc": { "experiment.last_data_take": 1}})
+        	    #move rail to zero position
+                self.rail.close()
 
-                self.rail.move(self.dx, 'R')
-                dset[j,:]=self.vna.send_sweep()
+        if self.mode==None:
+            while True:
+                #move to the starting position (only if it is different from 0)
+                myglobals.status="experiment running."
+                if self.xi!=0:
+                    if self.rail.move(self.xi, 'R')<0:
+                        myglobals.status="ERROR: check rail."
+                        break
+                file_name='dset_{}.hdf5'.format(data_take)
+                self.file_path=os.path.join(experiment_path, file_name)
+                self.f=h5py.File(self.file_path, 'w')
+                dset=self.f.create_dataset('sar_dataset', (self.npos, self.nfre), dtype=np.complex64)
 
-    	    if self.stop_flag:
-    		    break
+                dset[0,:]=self.vna.send_sweep()
 
-    	    take_time=datetime.utcnow().replace(tzinfo=FROM_ZONE).astimezone(TO_ZONE)
-            dset.attrs['take_index']=data_take
-            dset.attrs['xi']=str(1.0 * self.xi / METERS_TO_STEPS_FACTOR)
-            dset.attrs['xf']=str(1.0 * self.xf / METERS_TO_STEPS_FACTOR)
-            dset.attrs['dx']=str(1.0 * self.dx / METERS_TO_STEPS_FACTOR)
-            dset.attrs['npos']=self.npos
-            dset.attrs['fi']=self.fi * 1E9
-            dset.attrs['ff']=self.ff * 1E9
-            dset.attrs['nfre']=self.nfre
-            dset.attrs['ptx']=self.ptx
-            dset.attrs['ifbw']=self.ifbw
-            dset.attrs['beam_angle']=self.beam_angle
-            dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
-    	    self.f.close()
-    	    #celery task to send the data to the main server
-            send_data.delay(file_name, self.file_path, folder_name)
-            data_take=data_take+1
-    	    experiment_collection.update_one({"_id" : "current_experiment"},
-    					     {"$inc": { "experiment.last_data_take": 1}})
-    	    #move rail to zero position
-            if self.rail.zero()<0:
-                myglobals.status="ERROR: check rail."
-                break
+                for j in range(1, self.npos):
+                    if self.stop_flag:
+    		            break
+
+                    self.rail.move(self.dx, 'R')
+                    dset[j,:]=self.vna.send_sweep()
+
+        	    if self.stop_flag:
+        		    break
+
+        	    take_time=datetime.utcnow().replace(tzinfo=FROM_ZONE).astimezone(TO_ZONE)
+                dset.attrs['take_index']=data_take
+                dset.attrs['xi']=str(1.0 * self.xi / METERS_TO_STEPS_FACTOR)
+                dset.attrs['xf']=str(1.0 * self.xf / METERS_TO_STEPS_FACTOR)
+                dset.attrs['dx']=str(1.0 * self.dx / METERS_TO_STEPS_FACTOR)
+                dset.attrs['npos']=self.npos
+                dset.attrs['fi']=self.fi * 1E9
+                dset.attrs['ff']=self.ff * 1E9
+                dset.attrs['nfre']=self.nfre
+                dset.attrs['ptx']=self.ptx
+                dset.attrs['ifbw']=self.ifbw
+                dset.attrs['beam_angle']=self.beam_angle
+                dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
+        	    self.f.close()
+        	    #celery task to send the data to the main server
+                send_data.delay(file_name, self.file_path, folder_name)
+                data_take=data_take+1
+        	    experiment_collection.update_one({"_id" : "current_experiment"},
+        					     {"$inc": { "experiment.last_data_take": 1}})
+        	    #move rail to zero position
+                if self.rail.zero()<0:
+                    myglobals.status="ERROR: check rail."
+                    break
 
     	self.cleanup()
         myglobals.status="experiment not running."

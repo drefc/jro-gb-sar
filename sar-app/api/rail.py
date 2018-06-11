@@ -1,8 +1,4 @@
-import time
-import socket
-import logging
-
-import os, sys
+import time, socket, threading, os, sys
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 
@@ -44,13 +40,12 @@ class railClient():
         except socket.error:
             print "RAIL: instruction not sent"
 
-    def receive(self, timeout=None):
+    def receive(self, timeout=None, continuous=False):
         data=''
         buff=''
 
         if timeout:
             start=time.time()
-            #self.socket.setblocking(1)
 
         while True:
             try:
@@ -63,23 +58,24 @@ class railClient():
                     end=time.time()
                     if (end-start)>=timeout:
                         data=-1
-                        #self.socket.setblocking(0)
                         break
                 else:
                     pass
         print "RAIL: ack received."
-        return data
+        return True
 
-    def move(self, steps, direction=None):
+    def move(self, steps, direction=None, continuous=False):
         if direction is None:
             direction='R'
         else:
             direction=direction
 
         self.send(data=RAIL_INSTRUCTIONS['move']+str(steps)+str(direction)+'\n')
-        ack=self.receive(timeout=15)
-        #ack=self.receive()
-        #time.sleep(2)
+
+        if continuous:
+            ack=self.receive()
+        else:
+            ack=self.receive(timeout=15)
         return ack
 
     def stop(self):
@@ -98,3 +94,32 @@ class railClient():
         self.disconnect()
         self.socket.close()
         print "RAIL: disconnected."
+
+class rail_continuous(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.rail=railClient()
+        self.status=False
+        self.aperture_length=int(1.45*METERS_TO_STEPS_FACTOR)
+
+    def connect(self):
+        self.rail.connect()
+
+    def close(self):
+        self.rail.close()
+
+    def zero(self):
+        return self.rail.zero()
+
+    def get_status(self):
+        return self.status
+
+    def change_aperture_length(self, aperture_length):
+        self.aperture_length=aperture_length
+
+    def get_aperture_length(self):
+        return self.aperture_length / (METERS_TO_STEPS_FACTOR*1.0)
+
+    def run(self):
+        if self.rail.move(steps=self.aperture_length, continuous=True):
+            self.status=True
