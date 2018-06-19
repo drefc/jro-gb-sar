@@ -68,7 +68,7 @@ def check_instruments():
         return -1
     else:
         print "rail is online"
-     return 1
+    return 1
 
 def reset_arduino():
     GPIO.setwarnings(False)

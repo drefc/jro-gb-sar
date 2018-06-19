@@ -153,7 +153,7 @@ class sar_experiment(threading.Thread):
                 self.f=h5py.File(self.file_path, 'w')
                 dset=self.f.create_dataset('sar_dataset', data.shape, dtype=np.complex64)
 
-        	    take_time=datetime.utcnow().replace(tzinfo=FROM_ZONE).astimezone(TO_ZONE)
+                take_time=datetime.utcnow().replace(tzinfo=FROM_ZONE).astimezone(TO_ZONE)
                 dset.attrs['take_index']=data_take
                 dset.attrs['xi']=str(1.0 * self.xi / METERS_TO_STEPS_FACTOR)
                 dset.attrs['xf']=str(1.0 * self.get_aperture_length / METERS_TO_STEPS_FACTOR)
@@ -165,11 +165,11 @@ class sar_experiment(threading.Thread):
                 dset.attrs['ifbw']=self.ifbw
                 dset.attrs['beam_angle']=self.beam_angle
                 dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
-        	    self.f.close()
+                self.f.close()
         	    #celery task to send the data to the main server
                 send_data.delay(file_name, self.file_path, folder_name)
                 data_take=data_take+1
-        	    experiment_collection.update_one({"_id" : "current_experiment"},
+                experiment_collection.update_one({"_id" : "current_experiment"},
         					     {"$inc": { "experiment.last_data_take": 1}})
         	    #move rail to zero position
                 self.rail.close()
@@ -212,11 +212,11 @@ class sar_experiment(threading.Thread):
                 dset.attrs['ifbw']=self.ifbw
                 dset.attrs['beam_angle']=self.beam_angle
                 dset.attrs['datetime']=take_time.strftime("%d-%m-%y %H:%M:%S")
-        	    self.f.close()
+                self.f.close()
         	    #celery task to send the data to the main server
                 send_data.delay(file_name, self.file_path, folder_name)
                 data_take=data_take+1
-        	    experiment_collection.update_one({"_id" : "current_experiment"},
+                experiment_collection.update_one({"_id" : "current_experiment"},
         					     {"$inc": { "experiment.last_data_take": 1}})
         	    #move rail to zero position
                 if self.rail.zero()<0:
