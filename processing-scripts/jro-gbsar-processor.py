@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from matplotlib.dates import DayLocator, HourLocator, DateFormatter
@@ -287,12 +289,13 @@ class jro_gbsar_processor():
 
 	def tm_algorithm(self, s21, Rnk, take, date, time, results_folder, results_collection):
 		I = np.zeros([self.npos], dtype = np.complex64)
+		print self.nx, s21.shape
 		s21_arr = np.zeros([self.nx, self.nr], dtype = np.complex64)
 		nc0 = int(self.nfre/2.0) #first chunk of the frequency: f0,fc
 		nc1 = int((self.nfre+1)/2.0) #first chunk of the frequency: fc,ff
 		s21_arr[:,0:nc1] = s21[:, nc0:self.nfre] #invert array order
 		s21_arr[:,self.nr - nc0: self.nr] = s21[:, 0:nc0]
-		Fn0 = self.nr * ifft(s21_arr, n = self.nr)		
+		Fn0 = self.nr * ifft(s21_arr, n = self.nr)
 
 		for k in range(0,self.nx):
 			Fn = np.interp(Rnk[k,:] - R0, self.rn, np.real(Fn0[k,:])) + 1j * np.interp(Rnk[k,:] - R0, self.rn, np.imag(Fn0[k,:]))
@@ -343,7 +346,8 @@ class jro_gbsar_processor():
 		fig = plt.figure(1)
 
 		if take == 1:
-			self.vmin = np.amin(I)+30
+			#self.vmin = np.amin(I)+300
+			self.vmin = np.amin(I)
 			self.vmax = np.amax(I)
 
 			'''
@@ -1027,24 +1031,25 @@ class jro_sliding_processor():
 		print "Done!"
 
 if __name__ == "__main__":
-	xi =  -12.5
-	xf =  12.5
+	xi =  -10.0
+	xf =  10.0
 	yi =  0.0
-	yf =  25.0
+	yf =  20.0
 
 	R0 	=  0.0
 	dx  =  0.2
 	dy  =  0.2
 
+	#collection_name = 'san-mateo_27-06-18_13:53:25'
 	collection_name = 'data-luis'
 	#db_name = 'sar_processed_data'
 	db_name = 'sar-raw-data'
 	algorithm = 'terrain_mapping'
 
-	dp = jro_gbsar_processor(db_name=db_name, collection_name = collection_name, algorithm = algorithm)
+	dp = jro_gbsar_processor(db_name=db_name, collection_name=collection_name, algorithm=algorithm)
 	dp.insert_data_db()
 	dp.read_data()
-	dp.process_data(xi = xi, xf = xf, yi = yi, yf = yf, dx = dx, dy = dy, ifft_fact = 8, win = False)
+	dp.process_data(xi=xi, xf=xf, yi=yi, yf=yf, dx=dx, dy=dy, ifft_fact=8, win=True)
 	#dp.plot_data_profiles()
 
 	#collection_name = 'jro-labtest-2017-07-2722:40:48.212442'
