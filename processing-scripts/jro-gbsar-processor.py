@@ -131,8 +131,6 @@ class jro_gbsar_processor():
 		self.yf = yf
 		self.dx = dx
 		self.dy = dy
-
-		#results_folder = "/home/andre/sar_processed_data/imaging/" + self.collection_name
 		results_folder=os.path.join("/home/andre/sar_processed_data/imaging/", self.collection_name)
 
 		if not os.path.exists(results_folder):
@@ -142,47 +140,36 @@ class jro_gbsar_processor():
 		sar_processed_data_collection=processed_data_db[self.collection_name]
 
 		if self.algorithm == "range_migration":
-			range_res = 2 ** 11
-			cross_range_res = 2 ** 13
-			rows = int((max(cross_range_res, self.nx) - self.nx) / 2)
-			cols = int((max(range_res, self.nfre) - self.nfre) / 2)
-			cols_left = cols
-			cols_right = cols
-			rows_up = rows
-			rows_down = rows
+			range_res=self.nfre
+			cross_range_res=2**8
+			rows_up=int((max(cross_range_res, self.nx)-self.nx)/2)
+			#cols_right=int((max(range_res, self.nfre)-self.nfre)/2)
 
-			if not (self.nx % 2) == 0:
-				rows_down = rows + 1
+			rows_down=(rows_up+1) if (self.nx%2!=0 and rows_up!=0) else (rows_up)
+			#cols_left=(cols_right+1) if (self.nfre%2!=0 and cols_right!=0) else (cols_right)
 
-			if not (self.nfre % 2) == 0:
-				cols_left = cols+1
-
-			rs = (self.yf + self.yi) / 2.0
-			#rs = 100.0
-
-			s0 = self.calculate_matched_filter(rs, range_res, cross_range_res)
+			#rs=(self.yf+self.yi)/2.0
+			rs=200.0
+			phi= self.calculate_matched_filter(rs, range_res, cross_range_res)
+			s0=np.exp(1j*rs*phi)
 
 			for take in range(1, self.ntakes + 1):
 				print "Processing %d out of %d." %(take, self.ntakes)
-				s21 = np.empty([self.nx, self.nfre], dtype = np.complex64)
-				data = self.sar_collection.find({'take_number' : str(take + 1)})
 
-				for position in range(self.nx):
-					print "Take %d, position %d" %(take, position)
-					data_real = literal_eval(data[position]['data']['data_real'])
-					data_imag = literal_eval(data[position]['data']['data_imag'])
-					s21[position,:] = np.array(data_real)[0] + 1j * np.array(data_imag)[0]
+				data=self.sar_collection.find_one({'take_index' : take})
+				data_path=data['path']
+				f=h5py.File(data_path, 'r')
 
-				if win:
-					s21 = self.hanning(s21)
+				s21=f['sar_dataset']
+				s21=self.hanning(s21) if win else s21
+				#s21=np.pad(s21,[[rows_up,rows_down],[cols_left,cols_right]], 'constant', constant_values=0)
+				s21=np.pad(s21,[[rows_up,rows_down],[0,0]], 'constant', constant_values=0)
 
-				s21 = np.pad(s21,[[rows_up,rows_down],[cols_left,cols_right]], 'constant', constant_values=0)
+				dt=datetime.strptime(data['datetime'], "%d-%m-%y %H:%M:%S")
+				date=str(dt.date())
+				time=str(dt.time().strftime("%H:%M:%S"))
 
-				dt = json.loads(data[self.nx-1]['datetime'], object_hook=json_util.object_hook)
-				date = str(dt.date())
-				time = str(dt.time().strftime("%H:%M:%S"))
-
-				self.rm_algorithm(s21, s0, take, date, time)
+				self.rm_algorithm(s21, s0, take, date, time, results_folder, phi)
 
 		if self.algorithm == "terrain_mapping":
 			self.nposx =  int(np.ceil((xf - xi) / dx) + 1) #number of positions axis x
@@ -259,19 +246,24 @@ class jro_gbsar_processor():
 				self.tm_algorithm(s21, Rnk, take, date, time, results_folder, sar_processed_data_collection)
 
 	def calculate_matched_filter(self, rs, range_res, cross_range_res):
-		k = (4 * np.pi / c0) * np.linspace((self.fre_min), (self.fre_max), range_res)
-		ku = (np.pi / self.dax) * np.linspace(-1, 1, cross_range_res) * (1/2**3)
+		k=(4*np.pi/c0)*np.linspace(self.fre_min, self.fre_max, range_res)
+		ku=(np.pi/self.dax)*np.linspace(-1, 1, cross_range_res)
 		kk, kuu = np.meshgrid(k, ku)
-		self.kxmn = np.sqrt(kk ** 2 - kuu ** 2)
+		#phi=np.nan_to_num(rs*np.sqrt(kk**2-kuu**2))
+		#phi=np.nan_to_num(np.sqrt(kk**2-kuu**2))
+		phi=np.sqrt(kk**2-kuu**2)
+		"""
+		self.kxmn = np.sqrt(kk**2-kuu**2)
 		self.kxmn = np.nan_to_num(self.kxmn)
 		self.kymin = np.amin(ku)
 		self.kymax = np.amax(ku)
 		self.kxmin = np.amin(self.kxmn)
 		self.kxmax = np.amax(self.kxmn)
 		print self.kxmin, self.kxmax
+		"""
 
-		s0 = np.exp(1j * rs * (self.kxmn - kk))
-		return s0
+		#return np.exp(1j*phi)
+		return phi
 
 	def calculate_Rnk(self, xn, yn, xa):
 		Rnk = np.zeros([self.nx, self.npos], dtype = np.float32)
@@ -373,45 +365,40 @@ class jro_gbsar_processor():
 		plt.savefig(images_results_folder + '/image%d.png' %take)
 		fig.clear()
 
-	def rm_algorithm(self, s21, s0, take, date, time):
-		Fmn = np.fft.fftshift(fft(s21, axis = 0)) * s0
+	def rm_algorithm(self, s21, s0, take, date, time, results_folder, phi):
+		Fmn = np.fft.fftshift(fft(s21, axis = 0))*s0
 		ky_len = len(s0)
 
-		res = 2 ** 9
-		kx_even = np.linspace(self.kxmin, self.kxmax, res)
-		Fst = np.zeros((ky_len, res), dtype = np.complex64)
+		res = 2**12
+		kstart, kstop = np.amax(phi), np.amin(phi)
+		kx_even = np.linspace(kstart, kstop, res)
+		kx=phi
+		Fst = np.zeros((len(kx), len(kx_even)), dtype = np.complex64)
 
-		for i in range(ky_len):
-			interp_fn = interp1d(self.kxmn[i], Fmn[i], bounds_error = False, fill_value=(0,0))
+		for i in range(len(kx)):
+			interp_fn = interp1d(kx[i], Fmn[i], bounds_error = False, fill_value=0)
 			Fst[i] = interp_fn(kx_even)
 
-		Fst = np.nan_to_num(Fst)
+		Fst=np.nan_to_num(Fst)
+		ifft_len=[4*len(Fst), 4*len(Fst[0])]
+		f=(np.rot90(ifft2(Fst, ifft_len)))
 
-		f = ifft2(Fst)
-		f = (np.rot90(f))
-		#f = np.flipud(f)
+		#max_range = 2 * np.pi * f.shape[0]/(self.kxmax - self.kxmin)
+		#max_crange = 2 * np.pi * f.shape[1]/(self.kymax - self.kymin)
+		#print max_range, max_crange
 
-		max_range = 2 * np.pi * f.shape[0]/(self.kxmax - self.kxmin)
-		max_crange = 2 * np.pi * f.shape[1]/(self.kymax - self.kymin)
-		print max_range, max_crange
+		I=20*np.log10(np.absolute(f))
+		fig=plt.figure(1)
+		(self.vmin, self.vmax)=(np.amin(I), np.amax(I)) if take==1 else (self.vmin, self.vmax)
 
-		I = 10 * np.log10(np.absolute(f))
-		#I = (np.absolute(f))
-
-		fig = plt.figure(1)
-
-		#if take == 0:
-		#	return
-
-		if take == 0:
-			self.vmin = np.amin(I)
-			self.vmax = np.amax(I)
+		images_results_folder=results_folder+"/images"
 
 		im = plt.imshow(I, cmap = 'jet', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin = self.vmin, vmax = self.vmax)
 		cbar = plt.colorbar(im, orientation = 'vertical')
 		plt.ylabel('Range (m)', fontsize = 14)
 		plt.xlabel('Cross-range (m)', fontsize = 14)
-		plt.show()
+		#plt.show()
+		plt.savefig(images_results_folder + '/image%d.png' %take)
 		fig.clear()
 
 
@@ -1031,23 +1018,23 @@ class jro_sliding_processor():
 		print "Done!"
 
 if __name__ == "__main__":
-	xi =  -10.0
-	xf =  10.0
+	xi =  -100.0
+	xf =  100.0
 	yi =  0.0
-	yf =  20.0
+	yf =  600.0
 
 	R0 	=  0.0
 	dx  =  0.2
 	dy  =  0.2
 
-	#collection_name = 'san-mateo_27-06-18_13:53:25'
-	collection_name = 'data-luis'
+	collection_name = 'san-mateo_27-06-18_13:53:25'
+	#collection_name = 'data-luis'
 	#db_name = 'sar_processed_data'
 	db_name = 'sar-raw-data'
-	algorithm = 'terrain_mapping'
+	algorithm = 'range_migration'
 
 	dp = jro_gbsar_processor(db_name=db_name, collection_name=collection_name, algorithm=algorithm)
-	dp.insert_data_db()
+	#dp.insert_data_db()
 	dp.read_data()
 	dp.process_data(xi=xi, xf=xf, yi=yi, yf=yf, dx=dx, dy=dy, ifft_fact=8, win=True)
 	#dp.plot_data_profiles()
