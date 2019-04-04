@@ -1,83 +1,91 @@
 import time
 import socket
-import logging
-
-import os, sys
-
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
-
-from static import constants
+import sys
+import string
+import os
+import numpy as np
+from constants import *
 
 ###########################################################################
 ###########################MAIN-DIFFERENCE#################################
 ###########################################################################
 
-ARDUINO_INSTRUCTIONS = {'move' : '0\n',
-                        'calibrate' : '1\n',
-                        'zero_position' : '2\n',
-                        'stop' : '3\n',
-                        'end_connection' : '4\n',
-                        'servo_push':'5\n'}
+ARDUINO_INSTRUCTIONS = {'move' : '0',
+                        'calibrate' : '1',
+                        'zero_position' : '2',
+                        'stop' : '3',
+                        'end_connection' : '4',
+                        'servo_push':'5'}
 ###########################################################################
 ###########################MAIN-DIFFERENCE#################################
 ###########################################################################
+
+HOST = '10.10.40.245'
+#HOST = '10.10.50.236'
 PORT = 12345
 BUFFER_LENGTH = 10000
-
-log_path = '../log/'
 
 class railClient():
     def __init__(self, host = None, port = None):
         if host is None:
-            #host = HOST_LIST['rail']
-            host='10.10.40.245'
+            host = HOST
         if port is None:
             port = PORT
         self.host = host
         self.port = port
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #self.socket.settimeout(5)
 
     def connect(self):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
         try:
             self.socket.connect((self.host, self.port))
         except socket.error:
-            self.close()
+            self.socket.close()
+            self.socket = None
+
+        if self.socket is None:
+            print "could not connect to the rail"
+        else:
+            print "connected to the rail"
 
     def send(self, data):
+        self.error = 0
+
         try:
             self.socket.send(data)
         except socket.error:
-            #print "could not send instruction to the rail"
-            pass
+            self.error = -1
 
-        #if self.error < 0:
-        #    print "could not send instruction to the rail"
+        if self.error < 0:
+            print "could not send data: %s" %data
         #else:
         #    print "instruction sent: %s" %data
 
-    def receive(self):
-        data = ''
+    def recv(self):
+        self.data = ''
         aux = ''
         flag = False
+        x = ''
 
         while True:
             aux = self.socket.recv(1)
-            if aux == '\n':
+            if aux:
+                for x in aux:
+                    self.data += x
+                    if x == '\n':
+                        flag = True
+            else:
                 break
-            data = data + aux
-            #else:
-            #    break
 
-            #if flag:
-            #    break
-        return data
+            if flag:
+                break
+        return self.data
 
-    def move(self, steps, direction = None):
+    def send_move(self, steps, direction = None):
         if 0 < steps < (1450 * 20000 / 66.0):
             steps = steps
         else:
-            #print 'steps out of range (0 - 439 393)'
+            print 'steps out of range (0 - 439 393)'
             return
 
         if direction is None:
@@ -85,29 +93,27 @@ class railClient():
         else:
             direction = direction
 
-        #self.steps = steps
-        #self.direction = direction
-        self.send(data = ARDUINO_INSTRUCTIONS['move'] + str(steps) + str(direction) + '\n')
-        ack=self.receive()
-        return ack
-        #print "instruction sent: move %.8f to the right" %(steps*1.0 / METERS_TO_STEPS_FACTOR)
+        self.steps = steps
+        self.direction = direction
+        self.send(data = ARDUINO_INSTRUCTIONS['move'] + str(self.steps) + self.direction + '\n')
+        print "instruction sent: move %.8f to the right" %(steps*1.0 / METERS_TO_STEPS_FACTOR)
+        return self.recv()
         #print self.recv()
 
-    def stop(self):
+    def send_stop(self):
         self.send(data = ARDUINO_INSTRUCTIONS['stop'] + '\n')
-        #print "instruction sent: stop"
+        print self.recv()
+        print "instruction sent: stop"
 
-    '''
     def send_calibrate(self):
         self.send(data = ARDUINO_INSTRUCTIONS['calibrate'] + '\n')
         print "instruction sent: start calibration"
         #print self.recv()
-    '''
 
-    def zero(self):
-        self.send(data = ARDUINO_INSTRUCTIONS['zero'] + '\n')
-        #print "instruction sent: move to zero position"
-        print self.receive()
+    def send_zero_position(self):
+        self.send(data = ARDUINO_INSTRUCTIONS['zero_position'] + '\n')
+        print "instruction sent: move to zero position"
+        return self.recv()
         #if int(self.recv()) < 0:
         #    print "error while returning to zero position, please check switch"
 
@@ -117,7 +123,7 @@ class railClient():
     def send_servo_push(self):
         self.send(data=ARDUINO_INSTRUCTIONS['servo_push']+'\n')
         print "instruction sent: servo_push"
-        print self.receive()
+        print self.recv()
         #if int(self.recv()) < 0:
         #    print "error while returning to zero position, please check switch"
     ###########################################################################
@@ -125,9 +131,8 @@ class railClient():
     ###########################################################################
 
     def end_connection(self):
-        self.send(data = ARDUINO_INSTRUCTIONS['disconnect'] + '\n')
-        print self.receive()
+        self.send(data = ARDUINO_INSTRUCTIONS['end_connection'] + '\n')
 
     def close(self):
         self.socket.close()
-        #print "connection to the rail closed"
+        print "connection to the rail closed"

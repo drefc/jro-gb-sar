@@ -12,6 +12,8 @@ from common.common_functions import *
 from resources.receive_data import ReceiveData
 from resources.foo import Foo
 
+#stupid comment
+
 import logging
 import time
 
@@ -22,7 +24,8 @@ api.add_resource(ReceiveData, '/data_upload')
 api.add_resource(Foo, '/foo')
 
 if __name__ == '__main__':
-	host = run_vpn(check_vpn)
+	#host = run_vpn(check_vpn)
+	host='10.10.40.189'
 
 	if host:
-		app.run(host = host, port = 4500, debug=False)
+		app.run(host=host, port=4500, debug=False)

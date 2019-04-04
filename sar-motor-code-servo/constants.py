@@ -1,0 +1,9 @@
+RAW_DATA_SAVING_ROUTE = '/home/andre/sar_raw_data'
+FOLDER_NAME = '/experimentos_%s_%s'
+FILE_NAME = '/datos_toma_%d.hdf5'
+LAST_POSITION_ROUTE = '/tmp/'
+LAST_POSITION_NAME = 'sar_last_position.pickle'
+
+ONE_REVOLUTION_TO_MM = 66
+ONE_REVOLUTION_TO_STEPS = 20000
+METERS_TO_STEPS_FACTOR = 1000 * ONE_REVOLUTION_TO_STEPS / ONE_REVOLUTION_TO_MM

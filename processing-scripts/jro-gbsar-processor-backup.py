@@ -8,9 +8,8 @@ from matplotlib.dates import DayLocator, HourLocator, DateFormatter
 from scipy.fftpack import ifft, fft, ifft2, fftshift
 from scipy import interpolate
 from scipy.interpolate import griddata, interp1d
-from skimage.measure import block_reduce
 
-import ast, time, h5py, json, unicodedata, os, collections, subprocess
+import ast, time, h5py, json, unicodedata, os
 
 from pymongo import MongoClient
 from ast import literal_eval
@@ -25,9 +24,9 @@ c0=299792458.0
 RAW_DATA_PATH='/home/andre/sar_raw_data'
 IMAGING_RESULTS_PATH='/home/andre/sar_processed_data/imaging'
 SLIDING_RESULTS_PATH='/home/andre/sar_processed_data/sliding'
-DATA_PROFILES_PATH="/home/andre/sar_processed_data/data_profiles"
 
 class jro_gbsar_processor():
+	#def __init__(self, db_name, collection_name, algorithm):
 	def __init__(self, db_name=None, collection_name=None, single_file=None, raw_data_path=None, results_path=None):
 		if db_name is not None:
 			self.db_name=db_name
@@ -48,30 +47,9 @@ class jro_gbsar_processor():
 		for (dirpath, dirnames, filenames) in os.walk(os.path.join(self.raw_data_path, self.collection_name)):
 			for element in filenames:
 				file_location=os.path.join(dirpath, element)
-				print file_location
 				tmp=h5py.File(file_location, 'r+')
 				dset=tmp['sar_dataset']
 
-				if not self.sar_collection.find_one({'_id':'config'}):
-					post={'_id':'config',
-						  'start_position':dset.attrs['xi'],
-						  'stop_position':dset.attrs['xf'],
-						  'npos':int(dset.attrs['npos']),
-						  'delta':dset.attrs['dx'],
-						  'start_freq':float(dset.attrs['fi']),
-						  'stop_freq':float(dset.attrs['ff']),
-						  'nfre':int(dset.attrs['nfre']),
-						  'beam_angle':int(dset.attrs['beam_angle'])}
-					self.sar_collection.insert_one(post)
-
-				if not self.sar_collection.find_one({'path':file_location}):
-					print "Inserting {} to {} db!".format(file_location, self.db_name)
-					post={'type':'data',
-						  'path':file_location,
-						  'datetime':dset.attrs['datetime'],
-						  'take_index':int(dset.attrs['take_index'])}
-					self.sar_collection.insert_one(post)
-				""""
 				#insert metadata to the collection (if does not exist)
 				if not self.sar_collection.find_one({'_id':'config'}):
 					post={'_id':'config',
@@ -92,7 +70,6 @@ class jro_gbsar_processor():
 						  'datetime':dset.attrs['datetime'],
 						  'take_index':int(dset.attrs['take_index'])}
 					self.sar_collection.insert_one(post)
-				"""
 				tmp.close()
 		print "Done!"
 
@@ -101,7 +78,7 @@ class jro_gbsar_processor():
 		self.ntakes_list=sorted(self.sar_collection.find({"type":"data"}).distinct('take_index'), key=int)
 		self.ntakes=len(self.ntakes_list)
 
-		print("Found {} takes to process.".format(self.ntakes))
+		print "Found %d takes to process." %(self.ntakes)
 
 		self.beam_angle=parameters['beam_angle']
 		self.xai=float(parameters['start_position'])
@@ -115,33 +92,35 @@ class jro_gbsar_processor():
 		self.df=(self.fre_max - self.fre_min) / (self.nfre - 1.0)
 
 	def plot_data_profiles(self):
-		results_folder=os.path.join(DATA_PROFILES_PATH, self.collection_name)
-		not os.path.exists(results_folder) and os.makedirs(results_folder)
+		results_folder=os.path.join("/home/andre/sar_processed_data/data_profiles/", self.collection_name)
 
-		for take in range(self.ntakes+1):
-			print("Processing: {} of {}.".format(take, self.ntakes))
+		if not os.path.exists(results_folder):
+			os.makedirs(results_folder)
 
-			try:
-				data=self.sar_collection.find_one({'take_index' : take})
-				data_path=data['path']
-				f=h5py.File(data_path, 'r')
-			except:
-				print("Dataset {} not found".format(take))
-				continue
+		starting_take=1
+
+		for take in range(starting_take, self.ntakes + 1):
+			print "Processing %d out of %d." %(take, self.ntakes)
+			#s21 = np.empty([self.nx, self.nfre], dtype = np.complex64)
+			#data = self.sar_collection.find({'take_number' : str(take)})
+			data=self.sar_collection.find_one({'take_index' : take})
+			data_path=data['path']
+			f=h5py.File(data_path, 'r')
 			s21=f['sar_dataset']
 			nprofiles=s21.shape[0]
 
+			#nr = 2 ** int(np.ceil(np.log2(self.nfre)))
 			nr=self.nfre
-			B=self.df*nr
-			dr=c0/(2*B)
-			distance=np.arange(nr)*dr
+			B  = self.df*nr
+			dr = c0 / (2*B)
+			distance = np.arange(nr) * dr
 
-			nc0=int(self.nfre/2.0)
-			nc1=int((self.nfre+1)/2.0)
+			nc0 = int(self.nfre/2.0)
+			nc1 = int((self.nfre+1)/2.0)
 
-			s21_arr=np.zeros(s21.shape, dtype=complex)
+			s21_arr=np.zeros(s21.shape, dtype = complex)
 			s21_arr[:,0:nc1] = s21[:,nc0:self.nfre]
-			s21_arr[:,self.nfre-nc0:self.nfre]=s21[:,0:nc0]
+			s21_arr[:,self.nfre-nc0:self.nfre] = s21[:,0:nc0]
 
 			reflectivity=np.absolute(ifft(s21_arr))
 			reflectivity=10*np.log10(reflectivity)
@@ -151,20 +130,20 @@ class jro_gbsar_processor():
 				os.makedirs(data_profiles_folder)
 
 			for profile in range(nprofiles):
-				fig=plt.figure(1)
-				im=plt.plot(distance, reflectivity[profile])
+				fig = plt.figure(1)
+				im = plt.plot(distance, reflectivity[profile])
 				plt.xlabel('Range (m)', fontsize = 14)
 				plt.ylabel('Relative Radar Reflectivity (dB)', fontsize = 14)
 				plt.savefig(os.path.join(data_profiles_folder, 'data_profile_{}.png'.format(profile)))
 				fig.clear()
 
 	def process_single_file(self, xi, xf, yi, yf, dx, dy, ifft_fact=8, win=False, algorithm="terrain_mapping"):
-		self.xi=xi
-		self.xf=xf
-		self.yi=yi
-		self.yf=yf
-		self.dx=dx
-		self.dy=dy
+		self.xi = xi
+		self.xf = xf
+		self.yi = yi
+		self.yf = yf
+		self.dx = dx
+		self.dy = dy
 		self.algorithm=algorithm
 
 		tmp=h5py.File(self.single_file, 'r+')
@@ -213,15 +192,15 @@ class jro_gbsar_processor():
 			self.tm_algorithm(s21=s21, Rnk=Rnk, take=None, index=None, date=date, time=time,
 							  results_folder=None, results_collection=None)
 
-	def process_data(self, xi, xf, yi, yf, dx, dy, R0=0.0, ifft_fact=8, win=False, algorithm="terrain_mapping", suffix=None):
+	def process_data(self, xi, xf, yi, yf, dx, dy, R0=0.0, ifft_fact=8, win=False, algorithm="terrain_mapping"):
 		#grid extension: [(xi, xf), (yi, yf)]
 		#grid resolution: dx and dy
-		self.xi=xi
-		self.xf=xf
-		self.yi=yi
-		self.yf=yf
-		self.dx=dx
-		self.dy=dy
+		self.xi = xi
+		self.xf = xf
+		self.yi = yi
+		self.yf = yf
+		self.dx = dx
+		self.dy = dy
 		self.algorithm=algorithm
 		"""
 		self.ifft_fact=ifft_fact
@@ -229,18 +208,13 @@ class jro_gbsar_processor():
 		self.algorithm=algorithm
 		"""
 
-		if not suffix==None:
-			collection_name="{}_{}".format(self.collection_name, suffix)
-		else:
-			collection_name=self.collection_name
+		results_folder=os.path.join("/home/andre/sar_processed_data/imaging/", self.collection_name)
 
-		#results_folder=os.path.join(IMAGING_RESULTS_PATH, self.collection_name)
-		results_folder=os.path.join(IMAGING_RESULTS_PATH, collection_name)
-		not os.path.exists(results_folder) and os.makedirs(results_folder)
+		if not os.path.exists(results_folder):
+			os.makedirs(results_folder)
 
 		processed_data_db=self.db_client['sar_processed_data']
-		#sar_processed_data_collection=processed_data_db[self.collection_name]
-		sar_processed_data_collection=processed_data_db[collection_name]
+		sar_processed_data_collection=processed_data_db[self.collection_name]
 
 		if self.algorithm == "range_migration":
 			range_res=self.nfre
@@ -335,6 +309,8 @@ class jro_gbsar_processor():
 			"""
 
 		if self.algorithm == "terrain_mapping":
+			#query=sar_processed_data_collection.find({"algorithm":self.algorithm})
+
 			self.nposx=int(np.ceil((xf-xi)/dx)+1) #number of positions axis x
 			self.nposy=int(np.ceil((yf-yi)/dy)+1) #number of positions axis y
 			self.xf=self.xi+self.dx*(self.nposx-1) #recalculating x final position
@@ -355,7 +331,7 @@ class jro_gbsar_processor():
 			#sar_processed_data_collection.delete_many({})
 
 			Rnk=self.calculate_Rnk(xn, yn ,xa) #vector of distance from the antenna positions to the grid
-			Rnk_folder=os.path.join(results_folder, "Rnk.hdf5")
+			Rnk_folder=results_folder+"/Rnk.hdf5"
 			f=h5py.File(Rnk_folder, 'w')
 			dset=f.create_dataset("Rnk", (Rnk.shape), dtype=np.float32)
 			dset[...]=Rnk
@@ -376,15 +352,15 @@ class jro_gbsar_processor():
 
 			sar_processed_data_collection.insert(post)
 
-			parameters=sar_processed_data_collection.find_one({'type':'parameters'})
-			file_temp=h5py.File(parameters['Rnk_folder'], 'r+')
-			dset=file_temp["Rnk"]
-			Rnk=dset[...]
-			#print Rnk
+			parameters = sar_processed_data_collection.find_one({'type' : 'parameters'})
+			file_temp = h5py.File(parameters['Rnk_folder'], 'r+')
+			dset = file_temp["Rnk"]
+			Rnk = dset[...]
+			print Rnk
 			file_temp.close()
 
 			for index, take in enumerate(self.ntakes_list, 1):
-				print "Processing %d out of %d." %(index, self.ntakes)
+				print "Processing %d out of %d." %(take, self.ntakes)
 				data=self.sar_collection.find_one({'take_index' : take})
 				data_path=data['path']
 				f=h5py.File(data_path, 'r')
@@ -393,11 +369,13 @@ class jro_gbsar_processor():
 				s21=dset[...]
 				f.close()
 
-				s21=(s21*np.hanning(s21.shape[1]))*np.hanning(s21.shape[0])[:,np.newaxis] if win else s21
-				#s21=(s21*np.hamming(s21.shape[1]))*np.hamming(s21.shape[0])[:,np.newaxis] if win else s21
-				dt=datetime.strptime(datetime_aux, "%d-%m-%y %H:%M:%S")
-				date=str(dt.date())
-				time=str(dt.time().strftime("%H:%M:%S"))
+				if win:
+					s21 = s21 * np.hanning(s21.shape[1])
+					s21 = s21 * np.hanning(s21.shape[0])[:,np.newaxis]
+
+				dt = datetime.strptime(datetime_aux, "%d-%m-%y %H:%M:%S")
+				date = str(dt.date())
+				time = str(dt.time().strftime("%H:%M:%S"))
 
 				self.tm_algorithm(s21=s21, Rnk=Rnk, take=take, index=index, date=date, time=time,
 								  results_folder=results_folder, results_collection=sar_processed_data_collection)
@@ -429,108 +407,110 @@ class jro_gbsar_processor():
 				Rnk[k, y * self.nposx: (y+1) * self.nposx] = np.sqrt((xn - xa[k])**2 + yn[y]**2)
 		return Rnk
 
+	def hanning(self, s21):
+		Wr = 1.0 - np.cos(2 * np.pi * np.arange(1,self.nfre+1)/(self.nfre+1)) #Window Range
+		s21 = s21 * Wr
+		Wx = 1.0 - np.cos(2 * np.pi * np.arange(1,self.nx+1)/(self.nx+1)) #Window Cross-range
+		s21 = s21 * Wx[:, np.newaxis]
+		return s21
+
 	def tm_algorithm(self, s21, Rnk, date, time, take=None, index=None, results_folder=None, results_collection=None):
-		I=np.zeros([self.npos], dtype=np.complex64)
-		s21_arr=np.zeros([self.nx, self.nr], dtype=np.complex64)
-		nc0=int(self.nfre/2.0) #first chunk of the frequency: f0,fc
-		nc1=int((self.nfre+1)/2.0) #first chunk of the frequency: fc,ff
-		s21_arr[:,0:nc1]=s21[:, nc0:self.nfre] #invert array order
-		s21_arr[:,self.nr-nc0: self.nr]=s21[:, 0:nc0]
-		Fn0=self.nr*ifft(s21_arr, n=self.nr)
+		I = np.zeros([self.npos], dtype = np.complex64)
+		s21_arr = np.zeros([self.nx, self.nr], dtype = np.complex64)
+		nc0 = int(self.nfre/2.0) #first chunk of the frequency: f0,fc
+		nc1 = int((self.nfre+1)/2.0) #first chunk of the frequency: fc,ff
+		s21_arr[:,0:nc1] = s21[:, nc0:self.nfre] #invert array order
+		s21_arr[:,self.nr - nc0: self.nr] = s21[:, 0:nc0]
+		Fn0 = self.nr * ifft(s21_arr, n = self.nr)
 
-		if 'self.masked_values' not in locals():
-			for k in range(0,self.nx):
-				Fn=np.interp(Rnk[k,:]-R0, self.rn, np.real(Fn0[k,:]))+1j*np.interp(Rnk[k,:]-R0, self.rn, np.imag(Fn0[k,:]))
-				Fn*=np.exp(4j*np.pi*(self.fre_min/c0)*(Rnk[k,:]-R0))
-				I+=Fn
 
-			I/=(self.nfre*self.nx)
-			I=np.reshape(I, (self.nposy, self.nposx))
-			I=np.flipud(I)
+		for k in range(0,self.nx):
+			Fn=np.interp(Rnk[k,:] - R0, self.rn, np.real(Fn0[k,:])) + 1j * np.interp(Rnk[k,:] - R0, self.rn, np.imag(Fn0[k,:]))
+			Fn*=np.exp(4j * np.pi * (self.fre_min/c0) * (Rnk[k,:] - R0))
+			I+=Fn
 
-			aux_y=int((self.yf-((self.xf-self.yi*np.tan((self.beam_angle/2)*np.pi/180.0))*np.tan((180-self.beam_angle/2)*np.pi/180.0)))*I.shape[0]/(self.yf-self.yi))
-			mask_aux=np.ones(I.shape)
-			nposx=I.shape[1]
-			nposy=I.shape[0]
-			count=1
-
-			for k in range(nposy):
-				if k>=(aux_y+1):
-					npixels=int((count*((yf-yi)/I.shape[0])*np.tan((self.beam_angle/2)*np.pi/180.0))*I.shape[1]/(self.xf-self.xi))
-					mask_aux[k, 0:npixels]=0
-					mask_aux[k, nposx-npixels-1:nposx-1]=0
-					count=count+1
-			#self.masked_values=np.ma.masked_where(mask_aux==1, mask_aux)
-			#print mask_aux
-
-			self.masked_values=mask_aux
+		I /= (self.nfre * self.nx)
+		I = np.reshape(I, (self.nposy, self.nposx))
+		I = np.flipud(I)
 
 		if take==None and index==None and results_folder==None and results_collection==None:
 			I=10*np.log10(np.absolute(I))
 			fig=plt.figure(1)
-			self.vmin, self.vmax=[np.amin(I)+26, np.amax(I)]
+			self.vmin=np.amin(I)+32
+			self.vmax=np.amax(I)
 
 			folder=os.path.dirname(self.single_file)
-			im=plt.imshow(I, cmap='jet', extent=[self.xi,self.xf,self.yi,self.yf], vmin=self.vmin, vmax=self.vmax)
-			cbar=plt.colorbar(im, orientation = 'vertical')
+			im = plt.imshow(I, cmap = 'jet', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin = self.vmin, vmax = self.vmax)
+			cbar = plt.colorbar(im, orientation = 'vertical')
 			plt.ylabel('Range (m)', fontsize = 14)
 			plt.xlabel('Cross-range (m)', fontsize = 14)
 			plt.savefig('{}{}'.format(folder,'/img.png'))
 			fig.clear()
 		else:
-			data_results_folder=os.path.join(results_folder, "data")
-			images_results_folder=os.path.join(results_folder, "images")
+			data_results_folder = results_folder + "/data"
+			images_results_folder = results_folder + "/images"
 
-			not os.path.exists(data_results_folder) and os.makedirs(data_results_folder)
-			not os.path.exists(images_results_folder) and os.makedirs(images_results_folder)
+			if not os.path.exists(data_results_folder):
+				os.makedirs(data_results_folder)
 
-			f=h5py.File("{}/image{}.hdf5".format(data_results_folder, take), 'w')
-			dset=f.create_dataset("Complex_image", (self.nposy, self.nposx), dtype = np.complex64)
-			dset.attrs['dx']=self.dx
-			dset.attrs['dy']=self.dy
-			dset.attrs['date']=date
-			dset.attrs['time']=time
-			dset.attrs['ntoma']=take
-			dset.attrs['xi']=self.xi
-			dset.attrs['xf']=self.xf
-			dset.attrs['yi']=self.yi
-			dset.attrs['yf']=self.yf
-			dset.attrs['fi']=self.fre_min
-			dset.attrs['ff']=self.fre_max
-			dset.attrs['beam_angle']=self.beam_angle
-			dset[...]=I
+			if not os.path.exists(images_results_folder):
+				os.makedirs(images_results_folder)
+
+			f = h5py.File("{}/image{}.hdf5".format(data_results_folder, take), 'w')
+			dset = f.create_dataset("Complex_image", (self.nposy, self.nposx), dtype = np.complex64)
+			dset.attrs['dx'] = self.dx
+			dset.attrs['dy'] = self.dy
+			dset.attrs['date'] = date
+			dset.attrs['time'] = time
+			dset.attrs['ntoma'] = take
+			dset.attrs['xi'] = self.xi
+			dset.attrs['xf'] = self.xf
+			dset.attrs['yi'] = self.yi
+			dset.attrs['yf'] = self.yf
+			dset.attrs['fi'] = self.fre_min
+			dset.attrs['ff'] = self.fre_max
+			dset.attrs['beam_angle'] = self.beam_angle
+			dset[...] = I
 			f.close()
 
 			post = {"type": "data",
 					"take": str(take),
 					"date": date,
 					"time": time,
-					"route": os.path.join(data_results_folder, "image{}.hdf5".format(take))}
+					"route": data_results_folder + "/image{}.hdf5".format(take)}
 
 			results_collection.insert(post)
-			post=None
+			post = None
 
-			I/=np.amax(I)
-			I=20*np.log10(np.absolute(I))
+			I = 10 * np.log10(np.absolute(I))
+			fig = plt.figure(1)
 
 			if index==1:
-				#self.vmin, self.vmax=[np.amin(I)+25, np.amax(I)]
-				#self.vmin, self.vmax=[np.amin(I)+58, np.amax(I)]
-				self.vmin, self.vmax=[-20, 0]
-			I[self.masked_values==0]=np.nan
-			#print self.masked_values
+				self.vmin = np.amin(I)+32
+				#self.vmin = np.amin(I)
+				self.vmax = np.amax(I)
 
-			fig=plt.figure(figsize=(7.0, 9.0))
-			#fig=plt.figure(1)
-			current_cmap=cmap=plt.cm.jet
-			current_cmap.set_bad(color='k', alpha=1.)
-			im=plt.imshow(I, cmap='jet', extent=[self.xi,self.xf,self.yi,self.yf], vmin=self.vmin, vmax=self.vmax, aspect='auto')
-			#plt.imshow(self.masked_values, cmap='Greys', aspect='auto', extent=[self.xi,self.xf,self.yi,self.yf])
-			plt.colorbar(im, orientation='vertical')
-			plt.ylabel('Range (m)', fontsize=14)
-			plt.xlabel('Cross-range (m)', fontsize=14)
-			plt.savefig(os.path.join(images_results_folder, 'image{:06d}.png'.format(take)))
-			plt.close()
+				'''
+				aux = int((self.yf - (self.xf * np.tan(self.beam_angle * np.pi /180.0))) * I.shape[0] / (self.yf - self.yi))
+				mask = np.zeros(I.shape)
+
+				count = 0
+
+				for k in range(self.nposy):
+					#if k >= (int(0.5 * self.nposx / np.tan(32.0 * np.pi /180.0)) + 1):
+					if k >= (aux + 1):
+						mask[k, 0:count] = 1
+						mask[k, self.nposx - count -1:self.nposx-1] = 1
+						count = count + 1
+				self.masked_values = np.ma.masked_where(mask == 0, mask)
+				'''
+
+			im = plt.imshow(I, cmap = 'jet', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin = self.vmin, vmax = self.vmax)
+			#plt.imshow(self.masked_values, cmap = 'Greys', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin = self.vmin, vmax = self.vmax, interpolation = 'none')
+			cbar = plt.colorbar(im, orientation = 'vertical')
+			plt.ylabel('Range (m)', fontsize = 14)
+			plt.xlabel('Cross-range (m)', fontsize = 14)
+			plt.savefig(images_results_folder + '/image%d.png' %take)
 			fig.clear()
 
 	def rm_algorithm(self, s21, s0, take, date, time, results_folder, phi):
@@ -577,37 +557,33 @@ class jro_gbsar_processor():
 		'''
 
 class jro_sliding_processor():
-	def __init__(self, db_name, collection_name, suffix=None):
+	def __init__(self, db_name, collection_name):
 		self.db_name=db_name
-		self.collection_name=collection_name
-		self.db_client=MongoClient() #connect to MongoClient
+		self.collection_name = collection_name
+		self.db_client = MongoClient() #connect to MongoClient
 		self.results_path=SLIDING_RESULTS_PATH
 
-		if not suffix==None:
-			self.results_folder=os.path.join(self.results_path, "{}_{}".format(self.collection_name, suffix))
-			#self.collection_name="{}_{}".format(collection_name, suffix)
-		else:
-			self.results_folder=os.path.join(self.results_path, self.collection_name)
+		self.results_folder=os.path.join(self.results_path, self.collection_name)
 
 		if not os.path.exists(self.results_folder):
 			os.makedirs(self.results_folder)
 
 	def read_data(self):
-		db=self.db_client[self.db_name] #read 'sar_processed_data'
-		self.sar_collection=db[self.collection_name]
-		parameters=self.sar_collection.find({'type' : 'parameters'})[0]
+		db = self.db_client[self.db_name] #read 'sar_processed_data'
+		self.sar_collection = db[self.collection_name]
+		parameters = self.sar_collection.find({'type' : 'parameters'})[0]
 		self.ntakes_list=sorted([str(item) for item in self.sar_collection.find().distinct('take')], key=int)
-		self.ntakes=len(self.ntakes_list)
+		self.ntakes = len(self.ntakes_list)
 		print "Found {} takes to process.".format(self.ntakes-1)
 
-		self.xi=float(parameters['xi'])
-		self.xf=float(parameters['xf'])
-		self.yi=float(parameters['yi'])
-		self.yf=float(parameters['yf'])
-		self.fre_min=float(parameters['fi'])
-		self.fre_max=float(parameters['ff'])
-		self.fre_c=(self.fre_min+self.fre_max) / 2.0
-		self.lambda_d=1000*(c0/(self.fre_c*4*np.pi))
+		self.xi = float(parameters['xi'])
+		self.xf = float(parameters['xf'])
+		self.yi = float(parameters['yi'])
+		self.yf = float(parameters['yf'])
+		self.fre_min = float(parameters['fi'])
+		self.fre_max = float(parameters['ff'])
+		self.fre_c = (self.fre_min+self.fre_max) / 2.0
+		self.lambda_d = 1000*(c0/(self.fre_c*4*np.pi))
 
 		data=self.sar_collection.find_one({'take' : self.ntakes_list[0]})
 
@@ -639,8 +615,6 @@ class jro_sliding_processor():
 			correlation=dset[...]
 			file_temp.close()
 
-		range_max, cross_range_max=np.where(np.absolute(correlation)==np.amax(np.absolute(correlation)))
-
 		#aux_x=int((self.yi*np.tan(37.5*np.pi/180.0))*correlation.shape[1]/(self.xf-self.xi))
 		aux_y=int((self.yf-((self.xf-self.yi*np.tan(37.5*np.pi/180.0))*np.tan(52.5*np.pi/180.0)))*correlation.shape[0]/(self.yf-self.yi))
 
@@ -656,44 +630,32 @@ class jro_sliding_processor():
 				mask_aux[k, 0:npixels]=0
 				mask_aux[k, nposx-npixels-1:nposx-1]=0
 				count=count+1
-		cone=np.ma.masked_where(mask_aux==1, mask_aux)
-		#print mask_aux
-		#cone[cone==0]=np.nan
-		#img=np.absolute(correlation)*mask_aux
-		img=np.absolute(correlation)
-		img[img<=self.threshold_start]=np.nan
+		masked_values=np.ma.masked_where(mask_aux==1, mask_aux)
 
-		fig=plt.figure(figsize=(7.0, 9.0))
-		plt.title("Complex correlation magnitude", fontsize=11)
-		current_cmap=matplotlib.cm.get_cmap()
-		current_cmap.set_bad(color='black')
-		#im=plt.imshow(img[:int(img.shape[0]*750/850),int(img.shape[1]*100/700):int(img.shape[1]*600/700)],
-		#			  cmap='gnuplot2', extent=[self.xi+100,self.xf-100,self.yi+100,self.yf] , vmin=self.threshold_start, vmax=self.threshold_stop)
-		im=plt.imshow(img, cmap='gnuplot2', extent=[self.xi,self.xf,self.yi,self.yf] , vmin=self.threshold_start, vmax=self.threshold_stop)
-		#im=plt.imshow(img, cmap='gnuplot2', extent=[self.xi,self.xf,self.yi,self.yf])
-		#plt.imshow(masked_values, cmap='jet', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf])
-		#plt.imshow(cone, cmap='jet', aspect='auto', extent=[self.xi,self.xf,self.yi,self.yf])
-		plt.colorbar(im, orientation='vertical', format='%.2f')
-		plt.savefig(os.path.join(self.results_folder, "complex_correlation_mag.png"))
+		fig = plt.figure(1)
+		plt.title("Complex correlation magnitude", fontsize = 11)
+		im = plt.imshow(np.absolute(correlation)*mask_aux, cmap = 'jet', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf] , vmin = 0, vmax = 1)
+		plt.imshow(masked_values, cmap = 'Greys', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf])
+		plt.colorbar(im, orientation = 'vertical', format='%.1f')
+		plt.savefig(self.results_folder + "/complex_correlation_mag.png")
 		fig.clear()
 
 		mask=np.absolute(correlation)*mask_aux
 		mask_binary=np.ones(np.shape(mask))
-		[mask_binary[mask<=self.threshold_start], mask_binary[mask>=self.threshold_stop]]=[0,0]
+		[mask_binary[mask<=threshold_start], mask_binary[mask>=threshold_stop]]=[0,0]
 		masked_values=np.ma.masked_where(mask_binary==0, mask)
 
-		vmax, vmin=np.pi*self.lambda_d*np.array([1,-1])
-		#vmax, vmin=np.pi*np.array([1,-1])
-		mag_mean=np.zeros(self.ntakes-1)
-		phase_mean=np.zeros(self.ntakes-1)
-		phase_mean_sum=np.zeros(self.ntakes-1)
-		phase_std_dev=np.zeros(self.ntakes-1)
+		#vmax, vmin=np.pi*self.lambda_d*np.array([1,-1])
+		vmax, vmin=np.pi*np.array([1,-1])
+		mag_mean = np.zeros(self.ntakes - 1)
+		phase_mean = np.zeros(self.ntakes - 1)
+		phase_mean_sum = np.zeros(self.ntakes - 1)
+		phase_std_dev = np.zeros(self.ntakes - 1)
 		date_values=[]
 
-		fig=plt.figure(1)
+		fig = plt.figure(1)
 
-		#file_temp=h5py.File(self.results_folder+"/mask.hdf5", 'w')
-		file_temp=h5py.File(os.path.join(self.results_folder,"mask.hdf5"), 'w')
+		file_temp=h5py.File(self.results_folder+"/mask.hdf5", 'w')
 		dset=file_temp.create_dataset("Mask", (mask.shape), dtype = np.uint8)
 		dset[...]=mask_binary
 		file_temp.close()
@@ -705,120 +667,56 @@ class jro_sliding_processor():
 				break
 			data=self.sar_collection.find_one({'take' : self.ntakes_list[index]})
 
-			date0=(data['date'])
-			time0=(data['time'])
-			datetime0=datetime.strptime(''.join((date0, time0)), ''.join((date_format, time_format)))+timedelta(days=7)
-			#datetime0=datetime.strptime(''.join((date0, time0)), ''.join((date_format, time_format)))
 			file_temp=h5py.File(data['route'], 'r')
 			dset=file_temp["Complex_image"]
 			Imagen_master=dset[...]
-			Imagen_master=np.exp(1j*np.angle(Imagen_master[range_max, cross_range_max]))*np.conj(Imagen_master)
 			file_temp.close()
 
-			im0=block_reduce(Imagen_master, block_size=(3,3), func=np.mean)
 			data=self.sar_collection.find_one({'take' : self.ntakes_list[index+1]})
 
 			date=(data['date'])
 			time=(data['time'])
-			datetime1=datetime.strptime(''.join((date, time)), ''.join((date_format, time_format)))+timedelta(days=7)
-			#datetime1=datetime.strptime(''.join((date, time)), ''.join((date_format, time_format)))
 			file_temp=h5py.File(data['route'], 'r')
 			dset=file_temp["Complex_image"]
 			Imagen_slave=dset[...]
-			Imagen_slave=np.exp(1j*np.angle(Imagen_slave[range_max, cross_range_max]))*np.conj(Imagen_slave)
-			#print np.angle(Imagen_slave[range_max, cross_range_max])
 			file_temp.close()
-
-			im1=block_reduce(Imagen_slave, block_size=(3,3), func=np.mean)
-			phase2=np.angle(im0*np.conj(im1))
-
-			correlation2=block_reduce(correlation, block_size=(3,3), func=np.mean)
-			mag_correlation2=np.absolute(correlation2)
-			phase2[mag_correlation2<0.7]=np.nan
 
 			phase=np.angle(Imagen_master*np.conj(Imagen_slave))
 			magnitude=np.absolute(Imagen_master)
 			masked_angle=np.ma.masked_where(mask_binary==0, phase)
 			masked_magnitude=np.ma.masked_where(mask_binary==0, magnitude)
 
-			mag_mean[index]=masked_magnitude.mean()
-			phase_mean[index]=masked_angle.mean()*self.lambda_d
-			phase_mean_sum[index]=np.sum(phase_mean)
-			phase_std_dev[index]=np.std(masked_angle*self.lambda_d)
+			mag_mean[index] = masked_magnitude.mean()
+			phase_mean[index] = masked_angle.mean()*self.lambda_d
+			phase_mean_sum[index] = np.sum(phase_mean)
+			phase_std_dev[index] = np.std(masked_angle*self.lambda_d)
 			print "indice {}: {} {} {} {}".format(index, mag_mean[index], phase_mean[index], phase_mean_sum[index], phase_std_dev[index])
 			date_values.append(datetime.strptime(''.join((date, time)), ''.join((date_format, time_format)))+timedelta(days=7))
-			#date_values.append(datetime.strptime(''.join((date, time)), ''.join((date_format, time_format))))
 
 			#if index>=1:
 			#	print (date_values[index]-date_values[index-1]).total_seconds()
 			#if index==0:
 			#	vmax=np.amax(np.absolute(Imagen_master*np.conj(Imagen_slave)))
 			#	vmin=np.amin(np.absolute(Imagen_master*np.conj(Imagen_slave)))
-			img=phase
-			img[mask_binary==0]=np.nan
 
 			if output_images:
-				#if index==0:
-				#	im=plt.imshow(self.lambda_d*phase, cmap='jet', aspect='auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
-				plt.figure(figsize=(7.0, 9.0))
-				current_cmap=cmap=plt.cm.seismic
-				current_cmap.set_bad(color='k', alpha=1.)
-				#im=plt.imshow(img[:int(img.shape[0]*750/850),int(img.shape[1]*100/700):int(img.shape[1]*600/700)],
-				#			  extent=[self.xi+100,self.xf-100,self.yi+100,self.yf] , vmin=vmin, vmax=vmax, cmap=current_cmap)
-				im=plt.imshow(img, vmin=vmin, vmax=vmax, cmap=current_cmap, extent=[self.xi,self.xf,self.yi,self.yf])
-				plt.suptitle("{} {} - {} {}".format(datetime0.strftime(date_format), datetime0.strftime(time_format), datetime1.strftime(date_format), datetime1.strftime(time_format)), x=0.55)
-				plt.ylabel('Range (m)', fontsize=12)
-				plt.xlabel('Cross-range (m)', fontsize=12)
-				cbar=plt.colorbar(im, orientation='vertical', format='%.2f')
+				if index==0:
+					im=plt.imshow(self.lambda_d*phase, cmap = 'jet', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
+				plt.suptitle("Image {} and {}".format(index, index+1))
+				plt.ylabel('Range (m)', fontsize = 14)
+				plt.xlabel('Cross-range (m)', fontsize = 14)
+				cbar=plt.colorbar(im, orientation = 'vertical', format='%.2f')
 				#plt.imshow(self.lambda_d*phase, cmap = 'jet', aspect = 'auto',	extent = [self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
-				#plt.imshow(phase, cmap='jet', aspect='auto', extent=[self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
+				plt.imshow(phase, cmap = 'jet', aspect = 'auto',	extent = [self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
 				#plt.imshow(np.absolute(Imagen_master*np.conj(Imagen_slave)), cmap = 'jet', aspect = 'auto',	extent = [self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
 				#plt.imshow(masked_values, cmap = 'Greys', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf])
 				#plt.savefig(os.path.join(self.results_folder, "take_{}_{}.png".format("{0:0{width}}".format(take, width=width), "{0:0{width}}".format(take+1, width=width))))
-				plt.savefig(os.path.join(self.results_folder, "take_{:06d}_{:06d}.png".format(index, index+1)))
+				plt.savefig(os.path.join(self.results_folder, "take_{}_{}.png".format(index, index+1)))
 				plt.close()
-
-				"""
-				plt.figure(figsize=(7.0, 9.0))
-
-				current_cmap=cmap=plt.cm.seismic
-				current_cmap.set_bad(color='k', alpha=1.)
-				#im=plt.imshow(img[:int(img.shape[0]*750/850),int(img.shape[1]*100/700):int(img.shape[1]*600/700)],
-				#			  extent=[self.xi+100,self.xf-100,self.yi+100,self.yf] , vmin=vmin, vmax=vmax, cmap=current_cmap)
-				#im2=plt.imshow(im2, vmin=vmin, vmax=vmax, cmap=current_cmap, extent=[self.xi,self.xf,self.yi,self.yf])
-
-				im2=plt.imshow(phase2, vmin=vmin, vmax=vmax)#, interpolation='nearest')
-				#plt.suptitle("{} {} - {} {}".format(datetime0.strftime(date_format), datetime0.strftime(time_format), datetime1.strftime(date_format), datetime1.strftime(time_format)), x=0.55)
-				#plt.ylabel('Range (m)', fontsize=12)
-				#plt.xlabel('Cross-range (m)', fontsize=12)
-				cbar=plt.colorbar(im2, orientation='vertical', format='%.2f')
-				#plt.imshow(self.lambda_d*phase, cmap = 'jet', aspect = 'auto',	extent = [self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
-				#plt.imshow(phase, cmap='jet', aspect='auto', extent=[self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
-				#plt.imshow(np.absolute(Imagen_master*np.conj(Imagen_slave)), cmap = 'jet', aspect = 'auto',	extent = [self.xi,self.xf,self.yi,self.yf], vmin=vmin, vmax=vmax)
-				#plt.imshow(masked_values, cmap = 'Greys', aspect = 'auto', extent = [self.xi,self.xf,self.yi,self.yf])
-				#plt.savefig(os.path.join(self.results_folder, "take_{}_{}.png".format("{0:0{width}}".format(take, width=width), "{0:0{width}}".format(take+1, width=width))))
-				plt.savefig(os.path.join(self.results_folder, "take2_{:06d}_{:06d}.png".format(index, index+1)))
-				plt.close()
-				"""
-
 
 		#for i in range(1,len(date_values)):
 		#	delta=date_values[i]-date_values[i-1]
 		#	if delta.total_seconds()>=datetime.timedelta(minutes=17).total_seconds():
-
-		statistical_report_file=os.path.join(self.results_folder, "statistical_report.hdf5")
-
-		if not os.path.exists(statistical_report_file):
-			file_temp=h5py.File(statistical_report_file, 'w')
-			dset=file_temp.create_dataset("magnitude_mean", (mag_mean.shape), dtype=np.float32)
-			dset[...]=mag_mean
-			dset=file_temp.create_dataset("phase_mean", (phase_mean.shape), dtype=np.float32)
-			dset[...]=phase_mean
-			dset=file_temp.create_dataset("phase_mean_sum", (phase_mean_sum.shape), dtype=np.float32)
-			dset[...]=phase_mean_sum
-			dset=file_temp.create_dataset("phase_std_dev", (phase_std_dev.shape), dtype=np.float32)
-			dset[...]=phase_std_dev
-			file_temp.close()
 
 		fig.clear()
 		fig = plt.figure(figsize = (10.0, 6.0))
@@ -883,203 +781,26 @@ class jro_sliding_processor():
 			if index==len(self.ntakes_list)-1:
 				break
 
-			data=self.sar_collection.find_one({'take' : self.ntakes_list[index]})
-			file_temp=h5py.File(data['route'], 'r')
-			dset=file_temp["Complex_image"]
-			Imagen_master=dset[...]
+			data = self.sar_collection.find_one({'take' : self.ntakes_list[index]})
+			file_temp = h5py.File(data['route'], 'r')
+			dset = file_temp["Complex_image"]
+			Imagen_master = dset[...]
 			file_temp.close()
 
-			data=self.sar_collection.find_one({'take' : self.ntakes_list[index+1]})
-			file_temp=h5py.File(data['route'], 'r')
-			dset=file_temp["Complex_image"]
-			Imagen_slave=dset[...]
+			data = self.sar_collection.find_one({'take' : self.ntakes_list[index+1]})
+			file_temp = h5py.File(data['route'], 'r')
+			dset = file_temp["Complex_image"]
+			Imagen_slave = dset[...]
 			file_temp.close()
 
 			if index==0:
 				num=Imagen_master*np.conj(Imagen_slave)
 				den=np.sqrt(np.absolute(Imagen_master)**2 * np.absolute(Imagen_slave)**2)
 				continue
-			num+=Imagen_master*np.conj(Imagen_slave)
-			den+=np.sqrt(np.absolute(Imagen_master)**2*np.absolute(Imagen_slave)**2)
+			num += Imagen_master * np.conj(Imagen_slave)
+			den += np.sqrt(np.absolute(Imagen_master)**2 * np.absolute(Imagen_slave)**2)
 
 		return num/den
-
-	def local_minima_maxima(self):
-		statistical_report_route=os.path.join(self.results_folder, "statistical_report.hdf5")
-		file_temp=h5py.File(statistical_report_route, 'r')
-		dset=file_temp["phase_mean_sum"]
-		phase_mean_sum=dset[...]
-		file_temp.close()
-
-		phase_mean_sum_smooth=self.smooth(phase_mean_sum, window_len=30)
-		#plt.plot(phase_mean_sum_smooth)
-		#plt.show()
-		min_array=np.r_[True, phase_mean_sum_smooth[1:]<phase_mean_sum_smooth[:-1]] & np.r_[phase_mean_sum_smooth[:-1]<phase_mean_sum_smooth[1:], True]
-		max_array=np.r_[True, phase_mean_sum_smooth[1:]>phase_mean_sum_smooth[:-1]] & np.r_[phase_mean_sum_smooth[:-1]>phase_mean_sum_smooth[1:], True]
-		#cant=0
-		minima_maxima_index_list=[]
-
-		for x in range(1,len(phase_mean_sum)-1):
-			if min_array[x]==True or max_array[x]==True:
-				minima_maxima_index_list.append([x, phase_mean_sum[x]])
-				#print "Minima {}: {}".format(x, phase_mean_sum[x])
-
-		return minima_maxima_index_list
-		#print "Total: {}".format(cant)
-
-	def smooth(self, x,window_len=11,window='hanning'):
-	    """smooth the data using a window with requested size.
-
-	    This method is based on the convolution of a scaled window with the signal.
-	    The signal is prepared by introducing reflected copies of the signal
-	    (with the window size) in both ends so that transient parts are minimized
-	    in the begining and end part of the output signal.
-
-	    input:
-	        x: the input signal
-	        window_len: the dimension of the smoothing window; should be an odd integer
-	        window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
-	            flat window will produce a moving average smoothing.
-
-	    output:
-	        the smoothed signal
-
-	    example:
-
-	    t=linspace(-2,2,0.1)
-	    x=sin(t)+randn(len(t))*0.1
-	    y=smooth(x)
-
-	    see also:
-
-	    numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
-	    scipy.signal.lfilter
-
-	    TODO: the window parameter could be the window itself if an array instead of a string
-	    NOTE: length(output) != length(input), to correct this: return y[(window_len/2-1):-(window_len/2)] instead of just y.
-	    """
-
-	    if x.ndim != 1:
-	        raise ValueError, "smooth only accepts 1 dimension arrays."
-
-	    if x.size < window_len:
-	        raise ValueError, "Input vector needs to be bigger than window size."
-
-	    if window_len<3:
-	        return x
-
-	    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-	        raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
-
-	    s=np.r_[x[window_len-1:0:-1],x,x[-2:-window_len-1:-1]]
-	    #print(len(s))
-	    if window == 'flat': #moving average
-	        w=np.ones(window_len,'d')
-	    else:
-	        w=eval('np.'+window+'(window_len)')
-
-	    y=np.convolve(w/w.sum(),s,mode='valid')
-	    return y
-
-	def local_variations(self, neighbours=8):
-		list=self.local_minima_maxima()
-		#neighbours=8
-		count=0
-		local_variations_folder="local_variations_{}".format(neighbours)
-		results_folder=os.path.join(self.results_folder, local_variations_folder)
-		vmax, vmin=np.pi*self.lambda_d*np.array([1,-1])
-
-		if not os.path.exists(results_folder):
-			os.makedirs(results_folder)
-
-		file_temp=h5py.File(os.path.join(self.results_folder,"mask.hdf5"), 'r')
-		dset=file_temp["Mask"]
-		mask_binary=dset[...]
-		file_temp.close()
-
-		for element in list:
-			index=element[0]
-			image=self.sar_collection.find_one({'take' : str(index)})
-			if image==None:
-				continue
-			#print "Group {}".format(count)
-			group=[self.sar_collection.find_one({'take' : str(i)}) for i in range(index-neighbours,index+neighbours)]
-			date=group[0]['date']
-			time=group[0]['time']
-			prev_datetime=datetime.strptime(''.join((date, time)), ''.join((date_format, time_format)))+timedelta(days=7)
-
-			for element in group[1:]:
-				if element==None:
-					group.remove(element)
-					continue
-				date=element['date']
-				time=element['time']
-				act_datetime=datetime.strptime(''.join((date, time)), ''.join((date_format, time_format)))+timedelta(days=7)
-				if (act_datetime-prev_datetime)>timedelta(hours=4):
-					group.remove(element)
-					continue
-				#print "{} and {}".format(prev_datetime, act_datetime)
-				prev_datetime=act_datetime
-
-			group_folder=os.path.join(results_folder, "group_{}".format(count))
-			if not os.path.exists(group_folder):
-				os.makedirs(group_folder)
-
-			fig=plt.figure(1)
-			files=[]
-
-			for index in range(len(group)-1):
-				data=group[index]
-				print data['route']
-				file_temp=h5py.File(data['route'], 'r')
-				dset=file_temp["Complex_image"]
-				Imagen_master=dset[...]
-				file_temp.close()
-				date=data['date']
-				time=data['time']
-				datetime0=datetime.strptime(''.join((date, time)), ''.join((date_format, time_format)))+timedelta(days=7)
-
-				data=group[index+1]
-				print data['route']
-				file_temp=h5py.File(data['route'], 'r')
-				dset=file_temp["Complex_image"]
-				Imagen_slave=dset[...]
-				file_temp.close()
-				date=data['date']
-				time=data['time']
-				datetime1=datetime.strptime(''.join((date, time)), ''.join((date_format, time_format)))+timedelta(days=7)
-
-				img=np.angle(Imagen_master*np.conj(Imagen_slave))
-				img[mask_binary==0]=np.nan
-
-				plt.figure(figsize=(7.0, 9.0))
-
-				current_cmap=cmap=plt.cm.seismic
-				current_cmap.set_bad(color='k', alpha=1.)
-				#im=plt.imshow(img[:int(img.shape[0]*750/850),int(img.shape[1]*100/700):int(img.shape[1]*600/700)],
-				#			  extent=[self.xi+100,self.xf-100,self.yi+100,self.yf] , vmin=vmin, vmax=vmax, cmap=current_cmap)
-				im=plt.imshow(img, extent=[self.xi,self.xf,self.yi,self.yf] , vmin=vmin, vmax=vmax, cmap=current_cmap)
-				#plt.suptitle("{} {} - {} {}".format(datetime0.strftime(date_format), datetime0.strftime(time_format),
-													#datetime1.strftime(date_format), datetime1.strftime(time_format)), x=0.55)
-				plt.ylabel('Range (m)', fontsize=12)
-				plt.xlabel('Cross-range (m)', fontsize=12)
-				cbar=plt.colorbar(im, orientation='vertical', format='%.2f')
-				fname=os.path.join(group_folder, "{}_{}_and_{}_{}.png".format(datetime0.strftime(date_format), datetime0.strftime(time_format), datetime1.strftime(date_format), datetime1.strftime(time_format)))
-				plt.savefig(fname)
-				fname='_tmp%03d.png' % index
-				print('Saving frame', fname)
-				plt.savefig(fname)
-				files.append(fname)
-				plt.close()
-				fig.clear()
-
-			print('Making movie animation.mpg - this may take a while')
-			subprocess.call("mencoder 'mf://_tmp*.png' -mf type=png:fps=6 -ovc lavc "
-                "-lavcopts vcodec=wmv2 -oac copy -o {}".format(os.path.join(group_folder,"animation.mpg")), shell=True)
-			for fname in files:
-				os.remove(fname)
-
-			count=count+1
 
 	def clean_data_report(self, threshold):
 		self.clean_data_list=[]
@@ -1696,37 +1417,33 @@ class jro_sliding_processor():
 		print "Finish time: {}".format(datetime.now())
 
 if __name__ == "__main__":
-	xi=-200.0
-	xf=200.0
-	yi=200.0
-	yf=1000.0
+	xi=-350.0
+	xf=350.0
+	yi=100.0
+	yf=950.0
 
 	R0=0.0
-	dx=3.0
-	dy=3.0
-	collection_name='san_mateo_06-03-19_09:57:56'
-	#collection_name='san_mateo_09-10-18_03:50:12'
+	dx=0.5
+	dy=0.5
+	collection_name = 'san_mateo_09-10-18_03:50:12'
 
 	"""
 	db_name='sar-raw-data'
 	algorithm='terrain_mapping'
 	dp=jro_gbsar_processor(db_name=db_name, collection_name=collection_name)
-	#dp=jro_gbsar_processor(single_file='/home/andre/Desktop/tmp/dset_1705.hdf5')
+	#dp=jro_gbsar_processor(single_file='/home/andre/sar_raw_data/san_mateo_09-10-18_03:50:12/dset_1.hdf5')
 	#dp.process_single_file(xi=xi, xf=xf, yi=yi, yf=yf, dx=dx, dy=dy, ifft_fact=8, win=True, algorithm=algorithm)
-	#dp.insert_data_db()
+	dp.insert_data_db()
 	dp.read_data()
-	#dp.process_data(xi=xi, xf=xf, yi=yi, yf=yf, dx=dx, dy=dy, ifft_fact=8, win=True, algorithm=algorithm, suffix=2)
 	dp.process_data(xi=xi, xf=xf, yi=yi, yf=yf, dx=dx, dy=dy, ifft_fact=8, win=True, algorithm=algorithm)
 	#dp.plot_data_profiles()
 
 	"""
 	db_name='sar_processed_data'
-	x=jro_sliding_processor(db_name=db_name, collection_name=collection_name, suffix=2)
-	#x=jro_sliding_processor(db_name=db_name, collection_name=collection_name)
+	x=jro_sliding_processor(db_name=db_name, collection_name=collection_name)
 	x.read_data()
 	#x.calculate_parameters_grid(nx=8, ny=8)
-	x.calculate_sliding(threshold_start=0.7, threshold_stop=1, output_images=True)
-	#x.local_variations()
+	x.calculate_sliding(threshold_start=0.85, threshold_stop=1, output_images=True)
 	#x.calculate_sliding_split_threshold(threshold_number=9)
 	#x.clean_data_report(1.25)
 	#x.calculate_integrated_sliding2(integration_factor=2, output_images=False)

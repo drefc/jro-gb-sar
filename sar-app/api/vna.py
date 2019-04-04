@@ -111,7 +111,7 @@ class vnaClient():
 
     def send_idn(self):
         self.send(data = SCPI_IDN)
-        #print self.recv(33)
+        print self.recv()
 
     def send_ifbw(self, ifbw = None):
         if ifbw is None:
